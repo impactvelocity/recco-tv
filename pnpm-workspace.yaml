@@ -1,0 +1,5 @@
+packages:
+  - "packages/*"
+  - "services/*"
+  - "infra"
+# apps/tv is added once the Vega SDK scaffolds it (task 0.2); Vega projects use npm.

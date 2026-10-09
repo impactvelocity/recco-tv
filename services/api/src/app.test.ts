@@ -1,0 +1,193 @@
+import { handleInboundText } from "@recco/intake";
+import { AwsEumProvider, signWebhook, SimulatorProvider } from "@recco/sms";
+import { DEMO, MemoryPublisher, MemoryStore, seedDemo } from "@recco/store";
+import { beforeEach, describe, expect, it } from "vitest";
+import { createApp } from "./app";
+
+const SALT = "test-salt";
+let store: MemoryStore;
+let publisher: MemoryPublisher;
+let app: ReturnType<typeof createApp>;
+
+beforeEach(async () => {
+  store = new MemoryStore();
+  publisher = new MemoryPublisher();
+  await seedDemo(store, SALT);
+  const sim = new SimulatorProvider("+16045550142");
+  app = createApp({
+    store,
+    publisher,
+    reccoNumber: "+16045550142",
+    realtime: () => ({ mode: "polling", pollIntervalMs: 5000 }),
+    webhook: {
+      secret: "hook-secret",
+      provider: new AwsEumProvider(),
+      accept: (text) =>
+        handleInboundText(text, { store, publisher, phoneSalt: SALT, defaultCountry: "ca", startAgent: async () => {} }),
+    },
+    dev: {
+      sendText: async ({ from = DEMO.phone, body, providerMessageId }) => sim.text({ from, body, providerMessageId }),
+      handleText: (text) =>
+        handleInboundText(text, { store, publisher, phoneSalt: SALT, defaultCountry: "ca", startAgent: async () => {} }),
+    },
+  });
+});
+
+const auth = (token: string) => ({ authorization: `Bearer ${token}` });
+const demo = auth(DEMO.deviceToken);
+
+describe("auth", () => {
+  it.each(["/inbox", "/realtime"])("%s needs a device token", async (path) => {
+    expect((await app.request(path)).status).toBe(401);
+    expect((await app.request(path, { headers: auth("dev_demo.wrong") })).status).toBe(401);
+    expect((await app.request(path, { headers: auth("garbage") })).status).toBe(401);
+  });
+});
+
+describe("pairing", () => {
+  it("creates a device with a token and a five-digit code, then pairs by text", async () => {
+    const res = await app.request("/devices", { method: "POST" });
+    expect(res.status).toBe(201);
+    const { deviceToken, pairing } = (await res.json()) as any;
+    expect(pairing.code).toMatch(/^\d{5}$/);
+    expect(pairing.phoneNumber).toBe("+16045550142");
+
+    const before = (await (await app.request("/inbox", { headers: auth(deviceToken) })).json()) as any;
+    expect(before.pairing).toMatchObject({ paired: false, code: pairing.code });
+
+    await app.request("/dev/text", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ from: "+16045559876", body: pairing.code }),
+    });
+
+    const after = (await (await app.request("/inbox", { headers: auth(deviceToken) })).json()) as any;
+    expect(after.pairing).toEqual({ paired: true, phoneLast4: "9876", phoneNumber: "+16045550142" });
+    expect(JSON.stringify(after)).not.toContain("6045559876");
+  });
+
+  it("issues a fresh code on request", async () => {
+    const { deviceToken, pairing } = (await (await app.request("/devices", { method: "POST" })).json()) as any;
+    const res = await app.request("/devices/code", { method: "POST", headers: auth(deviceToken) });
+    const fresh = ((await res.json()) as any).pairing;
+    expect(fresh.code).toMatch(/^\d{5}$/);
+    expect(fresh.code).not.toBe(pairing.code);
+  });
+});
+
+describe("inbox", () => {
+  it("returns pairing state, friends with track records, and visible cards in one response", async () => {
+    const body = (await (await app.request("/inbox", { headers: demo })).json()) as any;
+    expect(body.pairing).toMatchObject({ paired: true, phoneLast4: "1234" });
+    expect(body.cards).toHaveLength(12);
+    expect(body.friends.find((f: any) => f.name === "Jordan")).toMatchObject({ ratedUp: 3, rated: 4 });
+    expect(body.cards[0].householdId).toBeUndefined();
+  });
+
+  it("hides hidden cards and shows pending texts", async () => {
+    await app.request("/cards/card_demo_10", { method: "PATCH", headers: { ...demo, "content-type": "application/json" }, body: JSON.stringify({ state: "hidden" }) });
+    await app.request("/dev/text", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ body: "Beef" }) });
+    const body = (await (await app.request("/inbox", { headers: demo })).json()) as any;
+    expect(body.cards).toHaveLength(11);
+    expect(body.pending).toHaveLength(1);
+  });
+
+  it("only returns the caller's household", async () => {
+    const { deviceToken } = (await (await app.request("/devices", { method: "POST" })).json()) as any;
+    const body = (await (await app.request("/inbox", { headers: auth(deviceToken) })).json()) as any;
+    expect(body.cards).toEqual([]);
+    const res = await app.request("/cards/card_demo_01", {
+      method: "PATCH",
+      headers: { ...auth(deviceToken), "content-type": "application/json" },
+      body: JSON.stringify({ state: "starred" }),
+    });
+    expect(res.status).toBe(409);
+  });
+});
+
+describe("PATCH /cards/:id", () => {
+  const patch = (id: string, body: unknown) =>
+    app.request(`/cards/${id}`, { method: "PATCH", headers: { ...demo, "content-type": "application/json" }, body: JSON.stringify(body) });
+
+  it("rating marks watched and publishes card.updated", async () => {
+    const res = await patch("card_demo_12", { rating: "up" });
+    expect(((await res.json()) as any).card).toMatchObject({ rating: "up", state: "watched" });
+    expect(publisher.sent.at(-1)?.event.type).toBe("card.updated");
+    const inbox = (await (await app.request("/inbox", { headers: demo })).json()) as any;
+    expect(inbox.friends.find((f: any) => f.name === "Jordan")).toMatchObject({ ratedUp: 4, rated: 5 });
+  });
+
+  it("picks a candidate", async () => {
+    const res = await patch("card_demo_11", { candidateTitleId: "tt0290978" });
+    expect(((await res.json()) as any).card).toMatchObject({ titleId: "tt0290978", needsCheck: false, services: ["BritBox"] });
+  });
+
+  it("moves a card to another friend", async () => {
+    const res = await patch("card_demo_10", { friendId: DEMO.friendIds.steph });
+    expect(((await res.json()) as any).card).toMatchObject({ origin: "friend", friendId: DEMO.friendIds.steph });
+  });
+
+  it("rejects bad input", async () => {
+    expect((await patch("card_demo_10", {})).status).toBe(400);
+    expect((await patch("card_demo_10", { state: "deleted" })).status).toBe(400);
+    expect((await patch("card_demo_10", { friendId: "fr_nobody" })).status).toBe(400);
+    expect((await patch("card_demo_10", { candidateTitleId: "tt1" })).status).toBe(400);
+    expect((await patch("card_nope", { state: "starred" })).status).toBe(404);
+  });
+});
+
+describe("POST /webhooks/sms", () => {
+  const eum = (body: string, from: string = DEMO.phone, id = `in-${Math.random()}`) =>
+    JSON.stringify({ originationNumber: from, destinationNumber: "+16045550142", messageBody: body, inboundMessageId: id });
+  const post = (raw: string, signature?: string) =>
+    app.request("/webhooks/sms", {
+      method: "POST",
+      headers: { "content-type": "application/json", ...(signature ? { "x-recco-signature": signature } : {}) },
+      body: raw,
+    });
+
+  it("accepts a signed AWS End User Messaging payload and queues the text", async () => {
+    const raw = eum("Severance");
+    const res = await post(raw, signWebhook(raw, "hook-secret"));
+    expect(res.status).toBe(202);
+    expect(await res.json()).toEqual({ accepted: true });
+    expect([...store.messages.values()].map((m) => [m.body, m.provider])).toEqual([["Severance", "aws"]]);
+    expect(publisher.sent.at(-1)?.event.type).toBe("card.pending");
+  });
+
+  it("refuses unsigned or wrongly signed calls", async () => {
+    const raw = eum("Severance");
+    expect((await post(raw)).status).toBe(401);
+    expect((await post(raw, signWebhook(raw, "wrong"))).status).toBe(401);
+    expect(store.messages.size).toBe(0);
+  });
+
+  it("refuses payloads that are not inbound texts", async () => {
+    const raw = JSON.stringify({ hello: "world" });
+    expect((await post(raw, signWebhook(raw, "hook-secret"))).status).toBe(400);
+  });
+
+  it("answers the same for an unknown phone, and stores nothing", async () => {
+    const raw = eum("Severance", "+16045550000");
+    const res = await post(raw, signWebhook(raw, "hook-secret"));
+    expect(res.status).toBe(202);
+    expect(await res.json()).toEqual({ accepted: true });
+    expect(store.messages.size).toBe(0);
+    expect(store.dropped).toBe(1);
+  });
+
+  it("processes a resent message once", async () => {
+    const raw = eum("Severance", DEMO.phone, "same-id");
+    await post(raw, signWebhook(raw, "hook-secret"));
+    await post(raw, signWebhook(raw, "hook-secret"));
+    expect(store.messages.size).toBe(1);
+  });
+
+  it("can pair a TV", async () => {
+    const { deviceToken, pairing } = (await (await app.request("/devices", { method: "POST" })).json()) as any;
+    const raw = eum(pairing.code, "+17785553333");
+    await post(raw, signWebhook(raw, "hook-secret"));
+    const inbox = (await (await app.request("/inbox", { headers: auth(deviceToken) })).json()) as any;
+    expect(inbox.pairing).toMatchObject({ paired: true, phoneLast4: "3333" });
+  });
+});

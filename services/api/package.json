@@ -1,0 +1,19 @@
+{
+  "name": "@recco/api",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@aws-sdk/client-secrets-manager": "^3.1148.0",
+    "@aws-sdk/client-sns": "^3.1148.0",
+    "@recco/core": "workspace:*",
+    "@recco/intake": "workspace:*",
+    "@recco/sms": "workspace:*",
+    "@recco/store": "workspace:*",
+    "hono": "^4.13.13",
+    "zod": "^4.6.5"
+  }
+}

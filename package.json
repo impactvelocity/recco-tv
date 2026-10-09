@@ -1,0 +1,42 @@
+{
+  "name": "recco",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@9.14.2",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev:local": "tsx scripts/dev-local.ts",
+    "text": "tsx scripts/text.ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "sms": "tsx scripts/sms.ts",
+    "pair-tv": "tsx scripts/pair-tv.ts",
+    "remote": "tsx scripts/remote.ts",
+    "eval": "tsx scripts/eval.ts",
+    "test:dynamo": "bash scripts/test-dynamo.sh",
+    "infra:synth": "pnpm --filter @recco/infra exec cdk synth --quiet",
+    "infra:diff": "pnpm --filter @recco/infra exec cdk diff",
+    "infra:deploy": "pnpm --filter @recco/infra exec cdk deploy --require-approval broadening --outputs-file ../.recco-outputs.json",
+    "infra:secrets": "tsx scripts/push-secrets.ts",
+    "infra:destroy": "pnpm --filter @recco/infra exec cdk destroy --force",
+    "measure": "tsx scripts/measure.ts"
+  },
+  "devDependencies": {
+    "@aws-sdk/client-secrets-manager": "^3.1148.0",
+    "@hono/node-server": "^2.1.4",
+    "@recco/api": "workspace:*",
+    "@recco/core": "workspace:*",
+    "@recco/intake": "workspace:*",
+    "@recco/recco-agent": "workspace:*",
+    "@recco/sms": "workspace:*",
+    "@recco/sources": "workspace:*",
+    "@recco/store": "workspace:*",
+    "@types/node": "^22.0.0",
+    "tsx": "^4.23.15",
+    "typescript": "^5.9.0",
+    "vitest": "^5.0.3"
+  }
+}

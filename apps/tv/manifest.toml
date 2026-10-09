@@ -1,0 +1,57 @@
+schema-version = 1
+
+[package]
+title = "Recco"
+version = "0.1.0"
+id = "com.recco.tv"
+
+[os.version]
+min = "1.2"
+target = "1.2"
+
+[needs]
+[[needs.module]]
+id = "/com.amazon.vega.os@IVega_1_2"
+
+[[needs.module]]
+id = "/com.amazon.kepler.keplerscript_2@IKeplerScript_1"
+
+[[needs.module]]
+id = "/com.amazon.kepler.async_storage__async_storage_2@IAsyncStorage__AsyncStorage_1"
+
+[[needs.module]]
+id = "/com.amazon.kepler.safe_area_context_2@ISafeAreaContext_0"
+
+[[needs.module]]
+id = "/com.amazon.kepler.screens_2@IScreens_0"
+
+[[needs.module]]
+id = "/com.amazon.kepler.navigation__core_7@INavigation__Core_0"
+
+[[needs.module]]
+id = "/com.amazon.kepler.navigation__elements_7@INavigation__Elements_0"
+
+[[needs.module]]
+id = "/com.amazon.kepler.navigation__native_7@INavigation__Native_0"
+
+[[needs.module]]
+id = "/com.amazon.kepler.navigation__routers_7@INavigation__Routers_0"
+
+[[needs.module]]
+id = "/com.amazon.kepler.navigation__stack_7@INavigation__Stack_0"
+
+
+
+
+
+
+
+
+
+
+[components]
+[[components.interactive]]
+id = "com.recco.tv.main"
+runtime-module = "/com.amazon.kepler.keplerscript.runtime.loader_2@IKeplerScript_2_0"
+launch-type = "singleton"
+categories = ["com.amazon.category.main"]

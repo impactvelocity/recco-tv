@@ -1,0 +1,18 @@
+{
+  "name": "@recco/recco-agent",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@ai-sdk/gateway": "^4.0.110",
+    "@aws-sdk/client-secrets-manager": "^3.1148.0",
+    "@recco/core": "workspace:*",
+    "@recco/sources": "workspace:*",
+    "@recco/store": "workspace:*",
+    "ai": "^7.0.136",
+    "zod": "^4.6.5"
+  }
+}

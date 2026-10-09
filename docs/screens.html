@@ -1,0 +1,278 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Recco TV Screens</title>
+<style>
+  body { font: 15px/1.45 system-ui, sans-serif; margin: 0; padding: 32px; background: #f4f4f4; color: #222; }
+  h1 { margin: 0 0 4px; }
+  h2 { margin: 56px 0 4px; border-top: 2px solid #222; padding-top: 16px; }
+  h3 { margin: 28px 0 8px; font-size: 15px; text-transform: uppercase; letter-spacing: .04em; color: #666; }
+  p.lede { color: #555; max-width: 760px; }
+
+  /* A 16:9 TV frame. Everything inside is a rough box, not a design. */
+  .tv { width: 100%; max-width: 960px; aspect-ratio: 16/9; background: #fff; border: 2px solid #222;
+        position: relative; padding: 28px 40px; box-sizing: border-box; overflow: hidden;
+        display: flex; flex-direction: column; gap: 10px; }
+  .center { justify-content: center; align-items: center; text-align: center; }
+  .box { border: 1px dashed #999; padding: 6px 10px; background: #fafafa; }
+  .focus { outline: 4px solid #222; outline-offset: 2px; }
+  .muted { color: #888; }
+  .big { font-size: 64px; font-weight: 700; letter-spacing: 12px; }
+  .huge { font-size: 48px; font-weight: 700; }
+  .row-between { display: flex; justify-content: space-between; align-items: center; }
+  .row { display: flex; gap: 10px; align-items: center; }
+  .label { font-size: 12px; font-weight: 600; margin-bottom: 4px; }
+  .cards { display: flex; gap: 8px; }
+  .card { width: 92px; height: 52px; border: 1px solid #999; background: #eee; font-size: 11px;
+          padding: 4px; box-sizing: border-box; flex: none; }
+  .card.pending { border-style: dashed; color: #888; }
+  .btn { border: 1px solid #222; padding: 6px 14px; border-radius: 6px; background: #fff; font-size: 13px; }
+  .tag { position: absolute; top: 8px; right: 10px; font-size: 11px; color: #888; }
+  .poster { width: 150px; height: 210px; border: 1px solid #999; background: #eee; flex: none;
+            display: flex; align-items: center; justify-content: center; text-align: center; font-size: 13px; }
+  .cand { width: 200px; border: 1px solid #999; padding: 8px; background: #fafafa; font-size: 12px; }
+
+  .notes { max-width: 960px; background: #fff; border-left: 4px solid #222; padding: 10px 16px; margin-top: 10px; }
+  .notes ul { margin: 4px 0; padding-left: 18px; }
+  .flow { font-family: ui-monospace, monospace; background: #fff; border: 1px solid #ccc; padding: 16px; white-space: pre; overflow-x: auto; max-width: 960px; box-sizing: border-box; }
+  .legend span { display: inline-block; margin-right: 18px; }
+</style>
+</head>
+<body>
+
+<h1>Recco: TV screens</h1>
+<p class="lede">A wireframe map of the Fire TV app, drawn from the spec (R7) and the current code in <code>apps/tv/src/screens</code>.
+Four screens: Pairing, Inbox, Card detail, Settings. Each one has a few states. Boxes show what is on screen. They are not a design.</p>
+<p class="legend"><span><b style="outline:4px solid #222;padding:0 4px">thick outline</b> = where focus starts</span><span><span class="box">dashed box</span> = an area of content</span></p>
+
+<h2>Flow</h2>
+<div class="flow">First launch ──► PAIRING (shows a code) ──she texts the code──► "Connected" ──► INBOX
+
+INBOX ──Select a card──► CARD DETAIL ──Back──► INBOX (same card keeps focus)
+INBOX ──Settings button──► SETTINGS ──Back / "Back to the list"──► INBOX
+INBOX ──Back──► exits the app
+
+Later launches skip Pairing and open the Inbox.
+Running in the background: live updates (a new text shows a placeholder card), plus the "offline" note.</div>
+
+<!-- ============================================================ -->
+<h2>1. Pairing</h2>
+<p class="lede">The first thing she sees. It connects this TV to her phone, and nothing on it takes focus. She texts the code from her phone and the TV moves on without her touching the remote.</p>
+
+<h3>1a. Waiting for a code</h3>
+<div class="tv center">
+  <span class="tag">Pairing / loading</span>
+  <div class="box">Recco mark</div>
+  <div class="muted">Getting a code…</div>
+  <div class="muted">( spinner )</div>
+</div>
+
+<h3>1b. Code shown</h3>
+<div class="tv center">
+  <span class="tag">Pairing / code</span>
+  <div class="box">Recco mark</div>
+  <div class="muted">Text</div>
+  <div class="big">48213</div>
+  <div>to <b>(604) 555-0142</b></div>
+  <div class="muted" style="max-width:520px">That connects this TV to your phone. After that, text Recco any show you hear about.</div>
+  <div class="muted">( spinner )</div>
+</div>
+<div class="notes"><ul>
+  <li>The code lasts 10 minutes. A new one replaces it on its own when it runs out.</li>
+  <li>The code and number are the largest text in the app, so they can be read from the couch.</li>
+</ul></div>
+
+<h3>1c. Connected</h3>
+<div class="tv center">
+  <span class="tag">Pairing / success</span>
+  <div class="box">Recco mark</div>
+  <div class="huge">Connected</div>
+  <div class="muted">to the phone ending 1234</div>
+</div>
+<div class="notes">Shows for a moment (within 5 s of her text), then the Inbox opens.</div>
+
+<!-- ============================================================ -->
+<h2>2. Inbox (home)</h2>
+<p class="lede">The main screen. A hero area at the top describes whichever card has focus, and rows of cards sit underneath it.</p>
+
+<h3>2a. Inbox with cards</h3>
+<div class="tv">
+  <span class="tag">Inbox</span>
+  <div class="row-between">
+    <div class="box">Recco mark</div>
+    <div class="row"><span class="muted" style="font-size:12px">(offline)</span><span class="btn">Settings</span></div>
+  </div>
+
+  <div class="box" style="padding:12px">
+    <div class="label muted">HERO: follows focus</div>
+    <div style="font-size:24px;font-weight:700">King of Queens</div>
+    <div class="muted">1998 · Series · From Jordan · 3 of 4 landed</div>
+    <div><i>“funny and worth watching”</i></div>
+    <div style="font-size:12px">On Netflix, Prime Video</div>
+  </div>
+
+  <div>
+    <div class="label">New</div>
+    <div class="cards">
+      <div class="card focus">King of Queens</div>
+      <div class="card">Severance</div>
+      <div class="card pending">Reading your text…</div>
+    </div>
+  </div>
+  <div>
+    <div class="label">Starred</div>
+    <div class="cards"><div class="card">The Bear</div><div class="card">Shōgun</div></div>
+  </div>
+  <div>
+    <div class="label">Jordan · 3 of 4 landed</div>
+    <div class="cards"><div class="card">King of Queens</div><div class="card">Slow Horses</div></div>
+  </div>
+  <div class="muted" style="font-size:12px">↓ more rows: Steph · Sam · From me · From the internet · Check these</div>
+</div>
+<div class="notes">
+  <b>Row order (fixed):</b> New → Starred → one row per friend → From me → From the internet → Check these
+  <ul>
+    <li><b>Hero:</b> title, year/type, who sent it, their track record, her note, where to watch. For a "Check these" card it says "3 possible matches · open it to pick". For an unmatched note it says "Not matched to a show yet".</li>
+    <li><b>Friend rows</b> show the track record in the label ("3 of 4 landed").</li>
+    <li><b>Placeholder card</b> ("Reading your text…", pulsing) appears in New when a text arrives and is swapped for the real card when the agent finishes. It never takes focus.</li>
+    <li>A card can sit in two rows at once, for example New and Jordan.</li>
+    <li>Focus starts on the first card in New. Each row remembers its last focused card.</li>
+    <li>Each card must still look right with no poster (a text-only title card).</li>
+  </ul>
+</div>
+
+<h3>2b. Empty inbox</h3>
+<div class="tv">
+  <span class="tag">Inbox / empty</span>
+  <div class="row-between">
+    <div class="box">Recco mark</div>
+    <span class="btn focus">Settings</span>
+  </div>
+  <div style="margin-top:auto;margin-bottom:auto">
+    <div class="huge" style="font-size:36px">Nothing to watch yet.</div>
+    <div>Text any show to <b>(604) 555-0142</b> and it shows up here.</div>
+    <div class="muted" style="margin-top:16px">Try one of these:</div>
+    <div>“Severance”</div>
+    <div>“King of Queens - Jordan said it was funny”</div>
+    <div>“a TikTok link, then "Steph sent this"”</div>
+  </div>
+</div>
+<div class="notes">Settings takes focus because there are no cards. This is one of the places where original empty-state artwork can go.</div>
+
+<!-- ============================================================ -->
+<h2>3. Card detail</h2>
+<p class="lede">She opens a card when she has decided what to watch, or to tidy up her list. It has three versions, one for each kind of card.</p>
+
+<h3>3a. Normal card (matched show)</h3>
+<div class="tv">
+  <span class="tag">Card detail</span>
+  <div class="row" style="align-items:flex-start;gap:24px">
+    <div class="poster">Poster<br>or text-only<br>title card</div>
+    <div>
+      <div style="font-size:30px;font-weight:700">King of Queens</div>
+      <div class="muted">1998 · Series · From Jordan · 3 of 4 landed</div>
+      <div style="margin-top:10px;font-size:18px"><i>“funny and worth watching”</i></div>
+      <div class="muted" style="margin-top:8px">Short plot, two lines at most…</div>
+      <div style="margin-top:8px"><b>On Netflix, Prime Video</b></div>
+    </div>
+  </div>
+  <div class="box" style="align-self:flex-start;border-left:6px solid #222">
+    Hold the mic button and say “Watch King of Queens”
+  </div>
+  <div class="row">
+    <span class="btn focus">Star</span>
+    <span class="btn">Hide</span>
+    <span class="btn">Thumbs up</span>
+    <span class="btn">Thumbs down</span>
+  </div>
+</div>
+<div class="notes"><ul>
+  <li><b>The Alexa line is how she starts watching.</b> Recco never opens another app.</li>
+  <li><b>Star</b> toggles to "Starred". <b>Hide</b> removes the card and goes back. <b>Thumbs up/down</b> marks the card watched and updates the friend's track record.</li>
+  <li>When no service carries it: "Not on a streaming service in Canada yet".</li>
+  <li>Back returns to the same card in the Inbox.</li>
+</ul></div>
+
+<h3>3b. "Check these" card (agent not sure)</h3>
+<div class="tv">
+  <span class="tag">Card detail / check</span>
+  <div class="row" style="align-items:flex-start;gap:24px">
+    <div class="poster">Text-only<br>title card</div>
+    <div>
+      <div style="font-size:30px;font-weight:700">The Office</div>
+      <div class="muted">From Sam</div>
+      <div style="margin-top:10px;font-size:18px"><i>“you have to watch this”</i></div>
+    </div>
+  </div>
+  <div style="font-weight:600;font-size:18px">Which one did you mean?</div>
+  <div class="row" style="align-items:stretch">
+    <div class="cand focus"><b>The Office</b><br>2005 · Series<br><span class="muted">Short plot…</span></div>
+    <div class="cand"><b>The Office</b><br>2001 · Series<br><span class="muted">Short plot…</span></div>
+    <div class="cand"><b>The Office</b><br>2019 · Series<br><span class="muted">Short plot…</span></div>
+    <span class="btn">Hide</span>
+  </div>
+</div>
+<div class="notes">Up to 3 candidates. When she picks one, the card turns into a normal card (3a) in place and focus moves to Star.</div>
+
+<h3>3c. Unsorted note (no match found)</h3>
+<div class="tv">
+  <span class="tag">Card detail / unsorted</span>
+  <div class="row" style="align-items:flex-start;gap:24px">
+    <div class="poster">Text-only<br>card</div>
+    <div>
+      <div style="font-size:30px;font-weight:700">that show about the chef</div>
+      <div class="muted">From the internet</div>
+      <div class="muted" style="margin-top:10px">Recco couldn't match this to a show. Link: tiktok.com/…</div>
+    </div>
+  </div>
+  <div class="row" style="margin-top:auto"><span class="btn focus">Hide</span></div>
+</div>
+<div class="notes">Her own words and the link are kept, with no Alexa line and no rating. The app never invents a title.</div>
+
+<!-- ============================================================ -->
+<h2>4. Settings</h2>
+<p class="lede">A small screen that shows which phone is linked and lets her pair another one.</p>
+
+<h3>4a. Default</h3>
+<div class="tv">
+  <span class="tag">Settings</span>
+  <div class="box" style="align-self:flex-start">Recco mark</div>
+  <div style="font-size:30px;font-weight:700">Settings</div>
+  <div class="muted">Connected to the phone ending 1234</div>
+  <div class="row" style="margin-top:16px">
+    <span class="btn focus">Pair another phone</span>
+    <span class="btn">Back to the list</span>
+  </div>
+  <div class="muted" style="font-size:12px;margin-top:auto">Recco 0.1.0 · api address</div>
+</div>
+
+<h3>4b. After "Pair another phone"</h3>
+<div class="tv">
+  <span class="tag">Settings / code</span>
+  <div class="box" style="align-self:flex-start">Recco mark</div>
+  <div style="font-size:30px;font-weight:700">Settings</div>
+  <div class="muted">Connected to the phone ending 1234</div>
+  <div class="muted">From the other phone, text</div>
+  <div class="big" style="font-size:44px">90517</div>
+  <div class="muted">to (604) 555-0142. The code lasts ten minutes.</div>
+  <div class="row" style="margin-top:8px">
+    <span class="btn focus">Pair another phone</span>
+    <span class="btn">Back to the list</span>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<h2>Across every screen</h2>
+<div class="notes"><ul>
+  <li><b>Remote only:</b> D-pad, Select and Back. One item always has focus (except on Pairing).</li>
+  <li><b>Offline:</b> a small "offline" note in the corner, while the app keeps showing the last list it loaded.</li>
+  <li><b>Live updates:</b> placeholder card → real card, without moving focus.</li>
+  <li><b>10-foot rules:</b> no text under 28 px at 1080p, safe margins on every edge, dark background.</li>
+  <li><b>Tone:</b> calm and personal, closer to a notebook than a storefront. Services are plain text with no logos.</li>
+  <li><b>Original art:</b> only the Recco mark and the empty states.</li>
+</ul></div>
+
+</body>
+</html>

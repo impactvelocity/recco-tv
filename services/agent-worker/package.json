@@ -1,0 +1,14 @@
+{
+  "name": "@recco/agent-worker",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@aws-sdk/client-bedrock-agentcore": "^3.1148.0",
+    "@recco/core": "workspace:*",
+    "@recco/store": "workspace:^"
+  }
+}

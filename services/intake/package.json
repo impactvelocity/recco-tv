@@ -1,0 +1,16 @@
+{
+  "name": "@recco/intake",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@aws-sdk/client-lambda": "^3.1148.0",
+    "@aws-sdk/client-secrets-manager": "^3.1148.0",
+    "@recco/core": "workspace:*",
+    "@recco/sms": "workspace:*",
+    "@recco/store": "workspace:*"
+  }
+}

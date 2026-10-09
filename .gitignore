@@ -1,0 +1,12 @@
+node_modules/
+dist/
+build/
+cdk.out/
+coverage/
+.env
+.env.*
+!.env.example
+.DS_Store
+*.log
+.recco-local/
+.recco-outputs.json
