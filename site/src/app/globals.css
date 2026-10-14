@@ -1,0 +1,92 @@
+@import "tailwindcss";
+
+/* Palette from docs/diagram (fall-night): warm ink on a dark green-black room. */
+@theme {
+  --color-bg: #121918;
+  --color-bg-deep: #0c1110;
+  --color-panel: #161f1d;
+  --color-panel-hi: #1c2724;
+  --color-line: rgb(255 247 232 / 0.1);
+  --color-line-hi: rgb(240 182 103 / 0.32);
+  --color-amber: #f0b667;
+  --color-orange: #d3632d;
+  --color-ink: #fff7e8;
+  --color-ink-2: #cfc9b4;
+  --color-muted: #8e978d;
+  --color-sms: #1f8a3a;
+  --color-sms-hi: #26a247;
+
+  --font-sans: var(--font-inter), -apple-system, "Helvetica Neue", sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, monospace;
+
+  --ease-tv: cubic-bezier(0.2, 0.8, 0.2, 1);
+
+  --animate-rise: rise 0.9s var(--ease-tv) both;
+  --animate-float: float 7s ease-in-out infinite;
+  --animate-pulse-ring: pulse-ring 2.4s ease-out infinite;
+  --animate-shimmer: shimmer 1.6s linear infinite;
+
+  @keyframes rise {
+    from {
+      opacity: 0;
+      transform: translateY(18px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  @keyframes float {
+    0%,
+    100% {
+      transform: translateY(0);
+    }
+    50% {
+      transform: translateY(-10px);
+    }
+  }
+  @keyframes pulse-ring {
+    0% {
+      box-shadow: 0 0 0 0 rgb(211 99 45 / 0.45);
+    }
+    100% {
+      box-shadow: 0 0 0 28px rgb(211 99 45 / 0);
+    }
+  }
+  @keyframes shimmer {
+    from {
+      background-position: -200% 0;
+    }
+    to {
+      background-position: 200% 0;
+    }
+  }
+}
+
+html {
+  scroll-behavior: smooth;
+  color-scheme: dark;
+}
+
+body {
+  background: var(--color-bg);
+  color: var(--color-ink);
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background: rgb(240 182 103 / 0.35);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

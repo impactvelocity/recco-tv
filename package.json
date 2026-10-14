@@ -8,6 +8,7 @@
   },
   "scripts": {
     "dev:local": "tsx scripts/dev-local.ts",
+    "dev:site": "pnpm --filter site dev --port 3100",
     "text": "tsx scripts/text.ts",
     "test": "vitest run",
     "test:watch": "vitest",

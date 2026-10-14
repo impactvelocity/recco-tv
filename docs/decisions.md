@@ -237,3 +237,10 @@ The TV app now follows the handoff in `docs/design/` (README plus the three HTML
 - **Why:** the placeholder was a pulsing tile that only said "Reading your text…", and with the 5-second burst wait (R2.6) it now sits there 10 to 17 seconds.
 - **What:** the bubble shows three hopping "typing" dots, and a status line under it steps through "Reading your text…", "Working out which show…", "Looking it up…", "Finding the poster…" and "Almost there…", 3.5 s a step, holding on the last. A light sweeps across the poster slot. The whole-tile opacity pulse is gone.
 - **Not wired to the agent:** the steps are timed on the TV, not sent by the agent, so they are approximate. Sending real progress would need new realtime events.
+
+## 2026-10-14 · A landing page in `site/`
+
+- **The team's call:** a public page for the submission, built from the demo film, the diagrams in `docs/diagram/` and the README. Next.js 16 and Tailwind 4 in `site/`, added to the pnpm workspace (`pnpm dev:site`). No AWS service; hosting is not decided yet.
+- **TV screens are rebuilt in HTML** from the design handoff's tokens, like the film, since the Vega app can't render in a browser. The season switcher uses the six real themes and their background loops.
+- **Mock content only.** The app's screenshots show studio posters and a streaming service's logo, so the page uses the film's original posters and plain rating marks instead (no third-party logos).
+- **"Forget me" is not on the page** while tasks 5.6–5.9 are open.
