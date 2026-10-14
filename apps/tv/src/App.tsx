@@ -1,54 +1,78 @@
 import React from 'react';
-import {StyleSheet, View} from 'react-native';
-import {NavigationContainer, DarkTheme} from '@amazon-devices/react-navigation__native';
+import {Image, StyleSheet, View} from 'react-native';
+import {
+  NavigationContainer,
+  DarkTheme,
+} from '@amazon-devices/react-navigation__native';
 import {createStackNavigator} from '@amazon-devices/react-navigation__stack';
-import {ReccoMark} from './components/ReccoMark';
+import {Background} from './components/Background';
 import type {RootStack} from './lib/navigation';
-import {CardScreen} from './screens/CardScreen';
-import {InboxScreen} from './screens/InboxScreen';
+import {HomeScreen} from './screens/HomeScreen';
 import {PairingScreen} from './screens/PairingScreen';
-import {SettingsScreen} from './screens/SettingsScreen';
 import {InboxProvider, useInbox} from './state/InboxContext';
-import {colors, type} from './theme';
+import {PrefsProvider, usePrefs} from './state/PrefsContext';
 
 const Stack = createStackNavigator<RootStack>();
 
-const navTheme = {...DarkTheme, colors: {...DarkTheme.colors, background: colors.bg, card: colors.bg}};
+const LOGO = require('../assets/recco-logo.png');
 
 function Root() {
   const {phase} = useInbox();
-  if (phase === 'starting') {
+  const {colors, loaded} = usePrefs();
+  if (phase === 'starting' || !loaded) {
     return (
       <View style={styles.splash}>
-        <ReccoMark size={type.hero} />
+        {loaded ? <Background motion={false} /> : null}
+        <Image
+          source={LOGO}
+          style={styles.logo}
+          resizeMode="contain"
+          accessibilityLabel="Recco"
+        />
       </View>
     );
   }
   const paired = phase === 'paired';
+  const navTheme = {
+    ...DarkTheme,
+    colors: {
+      ...DarkTheme.colors,
+      background: colors.canvas,
+      card: colors.canvas,
+    },
+  };
   return (
-    <Stack.Navigator
-      screenOptions={{headerShown: false, animationEnabled: false, cardStyle: {backgroundColor: colors.bg}}}>
-      {paired ? (
-        <>
-          <Stack.Screen name="Inbox" component={InboxScreen} />
-          <Stack.Screen name="Card" component={CardScreen} />
-          <Stack.Screen name="Settings" component={SettingsScreen} />
-        </>
-      ) : (
-        <Stack.Screen name="Pairing" component={PairingScreen} />
-      )}
-    </Stack.Navigator>
+    <NavigationContainer theme={navTheme}>
+      <Stack.Navigator
+        screenOptions={{
+          headerShown: false,
+          animationEnabled: false,
+          cardStyle: {backgroundColor: colors.canvas},
+        }}>
+        {paired ? (
+          <Stack.Screen name="Home" component={HomeScreen} />
+        ) : (
+          <Stack.Screen name="Pairing" component={PairingScreen} />
+        )}
+      </Stack.Navigator>
+    </NavigationContainer>
   );
 }
 
 export const App = () => (
-  <InboxProvider>
-    <NavigationContainer theme={navTheme}>
+  <PrefsProvider>
+    <InboxProvider>
       <Root />
-    </NavigationContainer>
-  </InboxProvider>
+    </InboxProvider>
+  </PrefsProvider>
 );
 
 const styles = StyleSheet.create({
-  splash: {flex: 1, backgroundColor: colors.bg, alignItems: 'center', justifyContent: 'center'},
+  splash: {
+    flex: 1,
+    backgroundColor: '#0E1218',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  logo: {height: 120, width: 360},
 });

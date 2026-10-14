@@ -1,7 +1,7 @@
-import type { TitleType } from "@recco/core";
+import type { TitleFacts, TitleType } from "@recco/core";
 
 /** One title as the lookup returns it. Every card's title id comes from here. */
-export interface TitleCandidate {
+export interface TitleCandidate extends TitleFacts {
   imdbId: string;
   title: string;
   year?: string;
@@ -22,12 +22,9 @@ export interface TitleLookup {
   details(imdbId: string): Promise<TitleCandidate | null>;
 }
 
-export interface AvailabilityLookup {
-  /** Names of the services that carry the title in a country (subscription, free or add-on). */
-  services(imdbId: string, country: string): Promise<string[]>;
-}
-
-export type Platform = "tiktok" | "instagram" | "youtube";
+/** "web" is any other page, read through Jina Reader. */
+export type Platform = SocialPlatform | "web";
+export type SocialPlatform = "tiktok" | "instagram" | "youtube";
 
 export interface Post {
   url: string;
@@ -46,7 +43,6 @@ export interface PostReader {
 
 export interface Sources {
   titles: TitleLookup;
-  availability: AvailabilityLookup;
   posts: PostReader;
 }
 

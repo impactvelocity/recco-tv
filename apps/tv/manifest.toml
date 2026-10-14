@@ -4,6 +4,7 @@ schema-version = 1
 title = "Recco"
 version = "0.1.0"
 id = "com.recco.tv"
+icon = "@image/app_icon.png"
 
 [os.version]
 min = "1.2"
@@ -40,14 +41,49 @@ id = "/com.amazon.kepler.navigation__routers_7@INavigation__Routers_0"
 [[needs.module]]
 id = "/com.amazon.kepler.navigation__stack_7@INavigation__Stack_0"
 
+[[needs.module]]
+id = "/com.amazon.kepler.linear_gradient_2@ILinearGradient_0"
+
+[[needs.module]]
+id = "/com.amazon.kepler.svg_3@ISVG_0"
+
+[[needs.module]]
+id = "/com.amazon.kepler.w3cmedia_2@IW3cmedia_1"
+
+# Background video (W3C media, URL mode). A missing media service fails silently.
+
+[[needs.module]]
+id = "/com.amazon.kepler.kepler_media_controls_1@IKeplerMediaControls_0"
+
+[[needs.module]]
+id = "/com.amazon.kepler.keplermediadescriptor_1@IKeplermediadescriptor_1"
 
 
+[wants]
+[[wants.service]]
+id = "com.amazon.media.server"
 
+[[wants.service]]
+id = "com.amazon.mediabuffer.service"
 
+[[wants.service]]
+id = "com.amazon.mediatransform.service"
 
+[[wants.service]]
+id = "com.amazon.mediametrics.service"
 
+[[wants.service]]
+id = "com.amazon.gipc.uuid.*"
 
+[[wants.service]]
+id = "com.amazon.audio.stream"
 
+[[wants.service]]
+id = "com.amazon.audio.control"
+
+[offers]
+[[offers.service]]
+id = "com.amazon.gipc.uuid.*"
 
 [components]
 [[components.interactive]]

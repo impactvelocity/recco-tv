@@ -1,13 +1,23 @@
 import type {CardFields, FriendWithRecord} from '@recco/core-shared/types';
 
-export type {Candidate, CardState, Rating, TitleType} from '@recco/core-shared/types';
+export type {
+  Candidate,
+  CardState,
+  Rating,
+  TitleType,
+} from '@recco/core-shared/types';
 
 /** Response shapes of services/api. */
 export type ApiCard = CardFields;
 export type ApiFriend = Omit<FriendWithRecord, 'householdId'>;
 
 export type PairingState =
-  | {paired: false; code: string | null; expiresAt: string | null; phoneNumber: string}
+  | {
+      paired: false;
+      code: string | null;
+      expiresAt: string | null;
+      phoneNumber: string;
+    }
   | {paired: true; phoneLast4: string; phoneNumber: string};
 
 export interface PendingText {
@@ -18,7 +28,6 @@ export interface PendingText {
 export interface Inbox {
   serverTime: string;
   pairing: PairingState;
-  household?: {country: string};
   friends: ApiFriend[];
   cards: ApiCard[];
   pending: PendingText[];
@@ -36,4 +45,6 @@ export interface CardUpdate {
   candidateTitleId?: string;
   origin?: 'friend' | 'me' | 'internet';
   friendId?: string;
+  /** Take the card out of its post's stack. */
+  ungroup?: true;
 }

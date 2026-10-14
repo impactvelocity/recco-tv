@@ -40,7 +40,7 @@ const agent = useModel
   ? createReccoAgent({ store, publisher, sources, model: createModel(process.env), modelName: modelId(process.env) })
   : createMockAgent({ store, publisher });
 const agentLabel = useModel
-  ? `${modelId(process.env)} via AI Gateway · titles ${sources.live.titles ? "OMDb" : "fixtures"}, services ${sources.live.availability ? "Streaming Availability" : "fixtures"}, posts ${sources.live.posts ? "ScrapeCreators" : "fixtures"}`
+  ? `${modelId(process.env)} via AI Gateway · titles ${sources.live.titles ? "OMDb" : "fixtures"}, posts ${sources.live.posts ? "ScrapeCreators" : "fixtures"}, pages ${sources.live.web ? "Jina" : "fixtures"}`
   : "mock (rules + fixtures)";
 const running = new Map<string, Promise<unknown>>();
 const sim = new SimulatorProvider(env.reccoNumber);
@@ -70,7 +70,7 @@ const app = createApp({
   publisher,
   reccoNumber: env.reccoNumber,
   realtime: () => ({ mode: "polling", pollIntervalMs: 5000 }),
-  webhook: { secret: env.webhookSecret, provider: new AwsEumProvider(), accept: intake },
+  webhook: { secret: env.webhookSecret, zernioSecret: env.zernioWebhookSecret, provider: new AwsEumProvider(), accept: intake },
   dev: {
     sendText: async ({ from = DEMO.phone, body, providerMessageId }) => sim.text({ from, body, providerMessageId }),
     handleText: async (text) => {
@@ -108,11 +108,12 @@ serve({ fetch: app.fetch, port: env.port, hostname: "0.0.0.0" }, () => {
   console.log(`  http://localhost:${env.port}`);
   for (const ip of lanAddresses) console.log(`  http://${ip}:${env.port}`);
   console.log(`\nAgent: ${agentLabel}`);
-  console.log(`\nDemo household: 3 friends, 12 cards, phone ending ${DEMO.phone.slice(-4)}`);
+  console.log(`\nDemo household: 3 friends, 13 cards, phone ending ${DEMO.phone.slice(-4)}`);
   console.log(`  Demo device token: ${DEMO.deviceToken}`);
   console.log(`  curl -H "Authorization: Bearer ${DEMO.deviceToken}" localhost:${env.port}/inbox`);
   console.log(`\nSend a text:`);
   console.log(`  pnpm text "King of Queens - Jordan said it was funny"   (prints the card it made)`);
   console.log(`  pnpm sms  "Severance"                                   (signed webhook, like a real provider)`);
-  console.log(`  Webhook: POST /webhooks/sms, AWS End User Messaging payload, x-recco-signature header\n`);
+  console.log(`  Webhook: POST /webhooks/sms, AWS End User Messaging payload, x-recco-signature header`);
+  console.log(`           POST /webhooks/zernio, Zernio message.received, x-zernio-signature header\n`);
 });

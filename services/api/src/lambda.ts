@@ -26,6 +26,7 @@ async function build() {
     }),
     webhook: {
       secret: secrets.SMS_WEBHOOK_SECRET,
+      zernioSecret: secrets.ZERNIO_WEBHOOK_SECRET,
       provider: new AwsEumProvider(),
       // Same path as a real number: the AWS End User Messaging payload goes to the SNS topic,
       // then SQS, then intake. Nothing downstream knows it came from the webhook.

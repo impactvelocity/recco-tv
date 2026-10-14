@@ -163,7 +163,7 @@ export class DynamoStore implements Store {
     return strip<RawMessage>(await this.get(`HH#${householdId}`, `MSG#${messageId}`));
   }
 
-  async updateMessage(householdId: string, messageId: string, changes: Partial<Pick<RawMessage, "status" | "error">>) {
+  async updateMessage(householdId: string, messageId: string, changes: Partial<Pick<RawMessage, "status" | "error" | "mergedInto">>) {
     const sets = Object.entries(changes).filter(([, v]) => v !== undefined);
     if (sets.length === 0) return;
     try {
@@ -208,7 +208,7 @@ export class DynamoStore implements Store {
     );
   }
 
-  /** Title data and availability cache (R5.2), stored in the same table with a TTL. */
+  /** Title data cache (R5.2), stored in the same table with a TTL. */
   cache() {
     return {
       get: async <T>(key: string): Promise<T | undefined> => {

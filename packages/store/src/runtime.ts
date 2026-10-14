@@ -6,12 +6,12 @@ import { DynamoStore } from "./dynamo";
 export interface ReccoSecrets {
   PHONE_HASH_SALT: string;
   SMS_WEBHOOK_SECRET?: string;
+  ZERNIO_WEBHOOK_SECRET?: string;
   AI_GATEWAY_API_KEY?: string;
   RECCO_MODEL?: string;
   OMDB_API_KEY?: string;
-  STREAMING_AVAILABILITY_API_KEY?: string;
-  STREAMING_AVAILABILITY_VIA?: string;
   SCRAPECREATORS_API_KEY?: string;
+  JINA_API_KEY?: string;
 }
 
 let secrets: Promise<ReccoSecrets> | undefined;

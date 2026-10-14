@@ -11,7 +11,7 @@
 │   ├── core/                 Product rules, types, brand name. No AWS imports.
 │   ├── store/                DynamoDB access + in-memory version for local runs
 │   ├── sms/                  One interface: AWS End User Messaging, Zernio, simulator
-│   └── sources/              ScrapeCreators, OMDb, Streaming Availability + fixtures
+│   └── sources/              ScrapeCreators, OMDb + fixtures
 ├── infra/                    CDK app
 ├── docs/
 │   ├── decisions.md          Any deviation from this plan, with the reason

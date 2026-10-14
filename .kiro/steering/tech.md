@@ -25,9 +25,8 @@
 | Database | DynamoDB, one table, on-demand |
 | Live updates | AWS AppSync Events over a plain WebSocket, with polling as the fallback |
 | Secrets | AWS Secrets Manager, for the outside API keys |
-| Post reader | ScrapeCreators API (captions and transcripts) |
+| Post reader | ScrapeCreators API (captions and transcripts) for TikTok, Instagram and YouTube; Jina Reader (r.jina.ai) for any other link |
 | Show data | OMDb API |
-| Where to watch | Streaming Availability API (Movie of the Night) |
 | Infrastructure | AWS CDK in TypeScript |
 | Tests | Vitest |
 
@@ -47,8 +46,7 @@ React Native for Vega documents WebSocket support. Connect to AppSync Events wit
 
 - **OMDb.** Content is licensed CC BY-NC. Fine for the hackathon; replace before any commercial use. Do not depend on the patron-only Poster API. Use a poster link only if the title response includes one.
 - **ScrapeCreators.** Read both the caption and the transcript. Many posts name the show in the caption or on screen and never say it aloud.
-- **Streaming Availability.** Look up by IMDb id, for the household's country. Use only the list of services. Ignore the deep links it returns.
-- Cache title data and availability in DynamoDB for seven days.
+- Cache title data in DynamoDB for seven days.
 
 ### Budgets
 

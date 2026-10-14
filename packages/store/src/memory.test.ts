@@ -1,27 +1,21 @@
-import { buildRows, withTrackRecords } from "@recco/core";
+import { buildInbox, withTrackRecords } from "@recco/core";
 import { describe, expect, it } from "vitest";
 import { MemoryStore } from "./memory";
 import { DEMO, seedDemo } from "./seed";
 
 describe("MemoryStore", () => {
-  it("seeds a demo household with three friends and twelve cards", async () => {
+  it("seeds a demo household with three friends and thirteen cards", async () => {
     const store = new MemoryStore();
     await seedDemo(store, "salt");
     const inbox = await store.getInbox(DEMO.householdId);
     expect(inbox?.friends).toHaveLength(3);
-    expect(inbox?.cards).toHaveLength(12);
+    expect(inbox?.cards).toHaveLength(13);
     const jordan = withTrackRecords(inbox!.friends, inbox!.cards).find((f) => f.name === "Jordan");
     expect(jordan).toMatchObject({ ratedUp: 3, rated: 4 });
-    expect(buildRows(inbox!.cards, inbox!.friends).map((r) => r.label)).toEqual([
-      "New",
-      "Starred",
-      "Jordan",
-      "Priya",
-      "Steph",
-      "From me",
-      "From the internet",
-      "Check these",
-    ]);
+    const items = buildInbox(inbox!.cards);
+    expect(items.filter((i) => i.kind === "stack")).toHaveLength(1);
+    expect(items.find((i) => i.cards[0]!.title === "The Bear")?.cards).toHaveLength(2);
+    expect(items.at(-1)?.watched).toBe(true);
   });
 
   it("only takes a pairing code once", async () => {

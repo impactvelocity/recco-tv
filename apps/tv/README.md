@@ -12,10 +12,13 @@ From the Vega Virtual Device, the local API is at `http://10.0.2.2:8787` (the de
 
 | Path | What |
 |---|---|
-| `src/App.tsx` | Navigation: Pairing, or Inbox / Card / Settings |
+| `src/App.tsx` | Navigation: Pairing, or Home |
 | `src/state/InboxContext.tsx` | Device token, inbox, polling, offline copy, card updates |
-| `src/screens/` | One file per screen |
-| `src/components/` | Title card, rows, hero, buttons, placeholder |
+| `src/state/PrefsContext.tsx` | Theme, default view and "Hide watched", saved on the TV |
+| `src/theme.ts` | The seven themes and the type scale from `docs/design/` |
+| `src/screens/` | Pairing and Home, plus the detail drawer and settings panels |
+| `src/components/` | Header, Featured, the inbox grid and tiles, card parts, buttons, background |
+| `assets/` | Logo, theme stills and vignettes (built from the design handoff's assets) |
 | `src/lib/` | API client, storage, formatting, focus helper, debug log |
 
-Row building, card states and the track record come from `packages/core` (Metro alias `@recco/core-shared`).
+Inbox grouping (`buildInbox`) and card states come from `packages/core` (Metro alias `@recco/core-shared`).

@@ -1,6 +1,6 @@
 /**
  * Responses in the shapes the real APIs return (trimmed), for client tests.
- * Shapes follow each provider's docs: OMDb, Streaming Availability v4,
+ * Shapes follow each provider's docs: OMDb,
  * ScrapeCreators OpenAPI examples.
  */
 export const OMDB_SEARCH_OFFICE = {
@@ -20,29 +20,20 @@ export const OMDB_TITLE_OFFICE_US = {
   Type: "series",
   Plot: "A mockumentary on a group of typical office workers.",
   Poster: "https://m.media-amazon.com/images/M/office-us.jpg",
+  Runtime: "22 min",
+  Genre: "Comedy",
+  imdbRating: "9.0",
+  Ratings: [
+    { Source: "Internet Movie Database", Value: "9.0/10" },
+    { Source: "Rotten Tomatoes", Value: "81%" },
+  ],
   imdbID: "tt0386676",
   Response: "True",
 };
 
-export const OMDB_TITLE_OFFICE_UK = { ...OMDB_TITLE_OFFICE_US, Year: "2001–2003", imdbID: "tt0290978", Poster: "N/A", Plot: "The story of an office." };
+export const OMDB_TITLE_OFFICE_UK = { ...OMDB_TITLE_OFFICE_US, Year: "2001–2003", imdbID: "tt0290978", Poster: "N/A", Plot: "The story of an office.", Ratings: [], imdbRating: "N/A", Runtime: "N/A", Genre: "Comedy, Drama" };
 
 export const OMDB_NOT_FOUND = { Response: "False", Error: "Movie not found!" };
-
-export const SA_SHOW_CA = {
-  itemType: "show",
-  showType: "series",
-  imdbId: "tt0386676",
-  title: "The Office",
-  streamingOptions: {
-    ca: [
-      { service: { id: "prime", name: "Prime Video" }, type: "subscription", link: "https://example.invalid/deeplink" },
-      { service: { id: "prime", name: "Prime Video" }, type: "subscription", link: "https://example.invalid/deeplink2" },
-      { service: { id: "apple", name: "Apple TV" }, type: "buy", link: "https://example.invalid/buy" },
-      { service: { id: "crave", name: "Crave" }, type: "addon", link: "https://example.invalid/addon" },
-      { service: { id: "tubi", name: "Tubi" }, type: "free", link: "https://example.invalid/free" },
-    ],
-  },
-};
 
 export const SC_TIKTOK_VIDEO = {
   success: true,

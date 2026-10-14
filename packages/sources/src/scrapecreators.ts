@@ -1,10 +1,10 @@
 import { cached, type Cache } from "./cache";
-import type { FetchLike, Platform, Post, PostReader } from "./types";
+import type { FetchLike, Post, PostReader, SocialPlatform } from "./types";
 
 const BASE = "https://api.scrapecreators.com";
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-export function platformOf(url: string): Platform | null {
+export function platformOf(url: string): SocialPlatform | null {
   let host: string;
   try {
     host = new URL(url).hostname.replace(/^www\.|^m\./, "");

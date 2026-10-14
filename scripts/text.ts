@@ -54,7 +54,6 @@ switch (result.kind) {
       const where = card.needsCheck || card.kind === "unsorted" ? "Check these" : card.origin === "friend" ? (result.friends?.find((f: any) => f.id === card.friendId)?.name ?? card.friendId) : card.origin === "me" ? "From me" : "From the internet";
       console.log(`${card.kind === "unsorted" ? "Unsorted note" : "Card"}: ${card.title}${card.year ? ` (${card.year})` : ""} → ${where}`);
       if (card.note) console.log(`  note: ${card.note}`);
-      if (card.services?.length) console.log(`  on: ${card.services.join(", ")}`);
       if (card.candidates?.length) console.log(`  candidates: ${card.candidates.map((c: any) => `${c.title} (${c.year})`).join(" | ")}`);
     }
     break;

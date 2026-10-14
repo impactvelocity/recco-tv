@@ -102,7 +102,7 @@ export class MemoryStore implements Store {
     return m && m.householdId === householdId ? clone(m) : null;
   }
 
-  async updateMessage(householdId: string, messageId: string, changes: Partial<Pick<RawMessage, "status" | "error">>) {
+  async updateMessage(householdId: string, messageId: string, changes: Partial<Pick<RawMessage, "status" | "error" | "mergedInto">>) {
     const m = this.messages.get(messageId);
     if (!m || m.householdId !== householdId) throw new Error(`No message ${messageId}`);
     this.messages.set(messageId, { ...m, ...changes });

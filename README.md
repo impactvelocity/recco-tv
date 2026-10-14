@@ -16,7 +16,7 @@ pnpm test
 pnpm dev:local
 ```
 
-`pnpm dev:local` starts the API on port 8787 with an in-memory store, seeded with a demo household (three friends, twelve cards), the SMS simulator, and the mock agent. In another terminal:
+`pnpm dev:local` starts the API on port 8787 with an in-memory store, seeded with a demo household (three friends, thirteen cards), the SMS simulator, and the mock agent. In another terminal:
 
 ```bash
 pnpm text "King of Queens - Jordan said it was funny and worth watching"
@@ -126,7 +126,7 @@ Removes every resource the stack created, including the table and the secret.
 | `packages/core` | Product rules and types. No AWS imports. |
 | `packages/store` | Store interface, in-memory store, demo seed |
 | `packages/sms` | SMS provider interface, AWS End User Messaging payload parser, webhook signing, simulator |
-| `packages/sources` | OMDb, Streaming Availability, ScrapeCreators (fixtures so far) |
+| `packages/sources` | OMDb, ScrapeCreators, Jina Reader (fixtures so far) |
 | `infra` | CDK app (Milestone 4) |
 | `docs` | Decisions, friction log, product feedback, AWS integrations |
 

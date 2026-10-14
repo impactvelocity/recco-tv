@@ -11,8 +11,8 @@ Her phone ──text──► SMS provider (AWS End User Messaging, or Zernio)
                               agent-worker (Lambda, async)
                                      ▼
                               recco-agent (Strands on AgentCore, Bedrock model)
-                                     │  tools: read_post, find_titles, where_to_watch,
-                                     │         list_friends, save_cards
+                                     │  tools: read_post, find_titles, list_friends,
+                                     │         save_cards
                                      ▼
                                  DynamoDB (one table) ──► publish "ready"
                                      ▲                         │
@@ -28,17 +28,20 @@ One DynamoDB table. Partition key `PK`, sort key `SK`.
 
 | Item | PK | SK | Main fields |
 |---|---|---|---|
-| Household | `HH#<id>` | `META` | country, createdAt, phoneLast4 |
+| Household | `HH#<id>` | `META` | country, createdAt, phoneLast4, phoneHash, channelId |
 | Friend | `HH#<id>` | `FRIEND#<friendId>` | name, ratedUp, rated |
-| Card | `HH#<id>` | `CARD#<time>#<cardId>` | titleId, title, year, type, plot, posterUrl, services, friendId, note, source, sourceUrl, state, rating, needsCheck, candidates, groupId, messageId |
+| Card | `HH#<id>` | `CARD#<time>#<cardId>` | titleId, title, year, type, plot, posterUrl, friendId, note, source, sourceUrl, state, rating, needsCheck, candidates, groupId, messageId |
 | Raw message | `HH#<id>` | `MSG#<time>#<messageId>` | body, status, providerMessageId |
+| Household TV | `HH#<id>` | `DEVICE#<deviceId>` | pairedAt |
 | Phone link | `PHONE#<hash>` | `META` | householdId |
 | Device | `DEVICE#<deviceId>` | `META` | householdId, tokenHash, pairedAt |
 | Pairing code | `PAIR#<code>` | `META` | deviceId, expiresAt (TTL) |
-| Title cache | `TITLE#<imdbId>#<country>` | `META` | title data, services, expiresAt (TTL) |
+| Title cache | `TITLE#<imdbId>#<country>` | `META` | title data, expiresAt (TTL) |
 | Seen message | `SEEN#<providerMessageId>` | `META` | expiresAt (TTL) |
 
-The inbox is one query on `PK = HH#<id>` that returns the household, friends, and cards, skipping raw messages.
+The inbox is one query on `PK = HH#<id>` that returns the household, friends, and cards, skipping raw messages and household TVs.
+
+Everything a household owns is either in its partition or reachable from it: the phone link through `phoneHash` on `META`, and each device through a household TV item. That is what lets a delete be complete without a scan or an index.
 
 ### API
 
@@ -48,8 +51,9 @@ Hono on Lambda behind a function URL. Every call except `POST /devices` needs `A
 |---|---|
 | `POST /devices` | Create a device. Returns the device token, pairing code, Recco number, and expiry. |
 | `POST /devices/code` | Issue a fresh pairing code. |
-| `GET /inbox` | Pairing state, friends, and cards. |
+| `GET /inbox` | Pairing state (including `otherTvs`, the household's other device count), friends, and cards. |
 | `PATCH /cards/:id` | Change state, rating, chosen candidate, or friend. |
+| `DELETE /household` | Forget me. Deletes the calling device's household and returns 204 when done. |
 | `GET /realtime` | WebSocket address, channel name, and auth for AppSync Events. |
 | `POST /dev/text` | Local and demo only. Feeds a fake text into intake. |
 
@@ -64,6 +68,10 @@ One AppSync Events channel per household, with an unguessable id, and one per de
 | `card.ready` | The agent saves a card | Replaces the placeholder |
 | `card.updated` | A card changes | Refreshes that card |
 | `card.failed` | The agent gives up | Removes the placeholder |
+| `household.deleted` | Forget me, or the last TV moved away | Clears token and saved inbox, shows pairing |
+| `channel.changed` | A TV left this household | Calls `GET /realtime` and resubscribes |
+
+Neither household event carries a channel id, so the TV that left learns nothing from them.
 
 Use an API key for AppSync Events in the demo. Note in `docs/decisions.md` that production needs a Lambda authoriser tied to the device token.
 
@@ -71,9 +79,8 @@ Use an API key for AppSync Events in the demo. Note in `docs/decisions.md` that 
 
 Built with the Strands Agents TypeScript SDK, deployed to AgentCore Runtime. It receives the household id, the message id, and the message body.
 
-- **Tool: read_post.** Takes a link. Returns the caption, the transcript, and the author. Uses ScrapeCreators.
+- **Tool: read_post.** Takes a link. Returns the caption, the transcript, and the author. Uses ScrapeCreators for TikTok, Instagram and YouTube, and Jina Reader for any other link (articles, IMDb, Letterboxd), where the caption is the page title and the transcript the page text.
 - **Tool: find_titles.** Takes a title guess, with an optional year and type. Returns up to five candidates. Uses OMDb.
-- **Tool: where_to_watch.** Takes an IMDb id and a country. Returns the list of services. Uses Streaming Availability.
 - **Tool: list_friends.** Returns the household's friends.
 - **Tool: save_cards.** Takes the finished cards. Validates them, writes them, updates the message, and publishes the events.
 
@@ -86,7 +93,7 @@ Rules the agent follows:
 5. Keep her note in her own words. Do not rewrite it.
 6. Call `save_cards` exactly once.
 
-`save_cards` is plain code, not a model call. It rejects any card whose `titleId` did not come from `find_titles` in this run.
+`save_cards` is plain code, not a model call. It rejects any card whose `titleId` did not come from `find_titles` in this run. It writes nothing if the household or the message no longer exists (R11.7).
 
 ### Pairing flow
 
@@ -96,16 +103,45 @@ Rules the agent follows:
 4. Intake writes the phone link and the device's household, deletes the code, and publishes `paired`.
 5. The TV app shows "Connected to the phone ending 1234" and moves to the inbox.
 
+### Moving a TV
+
+When a pairing code arrives (step 3 above) for a device that already belongs to a household:
+
+1. Same household: refresh `pairedAt` and stop.
+2. Different household: write the device's new household and its household TV item, delete its household TV item in the old household, and publish `paired` on the device channel.
+3. Count the old household's remaining TVs. None: forget the old household (below). Some: give it a new `channelId` and publish `channel.changed` on the old channel id.
+
+The decision is a pure function in `packages/core` (`planMove`), so the rule is tested without a store.
+
+### Forget me
+
+Triggered by `DELETE /household`, or by intake when a linked phone texts "FORGET ME" (`isForgetCommand` in `packages/core`). One store call, `deleteHousehold(id)`, in this order so that each step leaves nothing reachable behind it:
+
+1. Delete `PHONE#<phoneHash>`. New texts from that phone are now dropped.
+2. Delete each `DEVICE#<deviceId>` named by a household TV item. Those tokens now get 401.
+3. Delete every item in `HH#<id>`, in batches of 25.
+4. Publish `household.deleted` on the household channel.
+
+Every step is idempotent, so a retry (an SQS redelivery, or the TV calling again) finishes a delete that stopped halfway. Pairing codes, seen-message ids and the title cache hold no household data and expire by TTL.
+
+Outside the table, data can outlive a delete in three places, each listed in the README: the SQS dead-letter queue (raw texts with phone numbers, kept 4 days), the model provider behind the AI gateway (its own retention), and the outside lookups (OMDb sees titles, ScrapeCreators and Jina Reader see links). Logs carry ids, statuses and timings only.
+
 ### Fire TV app design
 
-- **Pairing screen.** The code and number in very large type, one line of explanation, and a spinner. Nothing to focus.
-- **Inbox screen.** A hero area at the top shows the focused card's title, who, and note. Rows scroll beneath it. Focus starts on the first card in New.
-- **Card detail screen.** Poster or title card on the left. Title, year, who, note, and services on the right. The Alexa line sits above the action row. Focus starts on Star.
-- **Settings screen.** The linked phone's last four digits, "Pair another phone" (shows a new code), and the app version.
-- **Placeholder card.** A soft pulsing card that reads "Reading your text".
-- **Empty inbox.** The Recco number and three example texts to send.
-- **Focus.** Use the focus patterns from Amazon's `vega-tv-interfaces-sample`. Remember the focused card per row. Back from the inbox root exits the app.
-- **State.** Load the inbox on launch and keep it in memory. Apply events to it. Save the last inbox to storage for offline start.
+The look, sizes and focus treatments are in `docs/design/README.md` (the Claude Design handoff). Each theme is a still, a vignette layer and a set of colours; the default is Auto, which picks the seasonal scene for the TV's local date and time (`sceneFor` in `packages/core`).
+
+- **Pairing screen.** "Getting a code…", then the code in five large digit boxes with the number, one line of explanation and a "Waiting for your text…" pill, then "Connected". Nothing to focus.
+- **Home screen.** A fixed header: the logo, Featured and Inbox tabs (focusing a tab switches the view), and the settings gear.
+  - **Inbox.** A 3-column grid built by `buildInbox`. A tile shows the poster, title, type and year, ratings, the message bubble and who sent it. A stack shows three fanned posters; Select opens its shows, with "Unstack into Inbox". Focus starts on the first tile.
+  - **Featured.** One show at a time in a large card; Left and Right flip through, wrapping. Stacks, unsorted notes and cards to check are skipped.
+- **Detail drawer.** A panel from the right: poster, title, meta, ratings, the synopsis, everyone's messages, the Alexa line, then Mark Watched, Remove and Back. Focus starts on Mark Watched and stays in the drawer. A card to check shows "Which one did you mean?" and its candidates instead of the synopsis.
+- **Settings panel.** The same panel style: Theme, Default view, Hide watched, the Recco number, "Pair another phone" (shows a new code), the linked phone's last four digits, "Forget me", and the app version.
+  - "Pair another phone" first says what happens to this list: "This list will be deleted when the other phone pairs" if this is the household's only TV, otherwise "This list stays on your other TVs". Then the code.
+  - "Forget me" turns the screen into a confirm step: "Delete your list, your friends, and the link to the phone ending 1234? Every TV using this list goes back to pairing. This can't be undone." Two buttons, "Keep my list" (focused) and "Delete everything".
+- **Placeholder tile.** A dashed tile with a "typing" bubble (three hopping dots), a status line that steps from "Reading your text…" through "Working out which show…", "Looking it up…" and "Finding the poster…" to "Almost there…" (3.5 s a step, then it holds), and a light sweeping across the poster slot.
+- **Empty inbox.** "Nothing to watch yet.", the Recco number, three how-it-works lines, and four example texts. Settings has focus.
+- **Focus.** One element always has focus. Back, or Left from the leftmost control, closes the drawer or settings and returns focus to where it was. Back closes an open stack. Back from the home screen with nothing open exits the app.
+- **State.** Load the inbox on launch and keep it in memory. Apply events to it. Save the last inbox to storage for offline start. On `paired`, `household.deleted`, or a 401, throw the saved inbox away first.
 
 ### Local mode
 

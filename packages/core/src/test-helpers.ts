@@ -12,7 +12,6 @@ export function card(overrides: Partial<Card> = {}): Card {
     titleId: `tt${seq}`,
     title: `Show ${seq}`,
     type: "series",
-    services: [],
     origin: "me",
     source: "text",
     state: "new",

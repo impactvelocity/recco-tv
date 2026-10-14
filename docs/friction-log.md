@@ -85,3 +85,43 @@ Every time a tool, SDK or document gets in the way, add an entry in this format.
 - Severity: minor
 - Workaround: Kept `aria-label` only.
 - Suggestion: Add the Vega-specific accessibility props to the `@amazon-devices/react-native-kepler` type definitions.
+
+### No way to screenshot the Vega Virtual Device
+- Tool / doc: `vega exec vda` screenshooter (Builder Tools MCP doc `vega_cli_commands_exec_vda_gwsi_tool_screenshooter.md`)
+- Task attempted: 5.2, checking the new design on the virtual device.
+- Steps taken: Read the screenshot doc before capturing.
+- Expected: A screenshot of the running app, to compare with the design.
+- Actual: The doc says the tool only works on physical devices. The VVD window is not an app bundle, so desktop automation cannot target it either.
+- Severity: moderate (visual QA needs a person at the screen, or a Fire TV Stick)
+- Workaround: Checked behaviour through the app's debug focus log while pressing remote keys with `pnpm remote`. The look still needs a person.
+- Suggestion: Support screenshots on the virtual device, as the Android emulator does.
+
+### Reinstalling the app wipes its storage
+- Tool / doc: `vega run-app <vpkg>`
+- Task attempted: 5.2, reinstalling after a fix.
+- Steps taken: Ran `vega run-app` again with the new build.
+- Expected: App data kept across an upgrade install, as on Fire OS.
+- Actual: AsyncStorage was empty after the reinstall, so the TV lost its device token and went back to pairing. Remote keys meant for the inbox landed on the pairing screen, and Back closed the app.
+- Severity: minor
+- Workaround: `pnpm pair-tv` after each reinstall, or `vega device launch-app` when only relaunching.
+- Suggestion: Say in the `run-app` help whether it keeps app data.
+
+### Playing a bundled video file is undocumented
+- Tool / doc: `@amazon-devices/react-native-w3cmedia` (Builder Tools MCP `react_native_for_vega_media_player.md`, Vega media player docs)
+- Task attempted: 5.2, looping background videos.
+- Steps taken: Read the media player and architecture docs, then searched the docs and the developer forum.
+- Expected: A documented way to play an MP4 shipped inside the app, as with images.
+- Actual: The docs only show remote URLs. The forum gives three conflicting answers: `asset://`, `require()` with `resolveAssetSource` (rejected as insecure `http://localhost` in debug), and finally `/pkg/assets/raw/<file>`, which Amazon staff called a stopgap until an asset resolver API arrives.
+- Severity: moderate
+- Workaround: Put the MP4s in `apps/tv/assets/raw/` and set `src = '/pkg/assets/raw/<file>.mp4'`. Plays and loops on the Vega Virtual Device.
+- Suggestion: Document local file playback in the media player guide, and ship the asset resolver API.
+
+### OMDb search matches whole words, so "and" misses "&"
+- Tool / doc: OMDb API (`s=` and `t=` endpoints)
+- Task attempted: Texting "Dorah said we shoud watch trains planes and automobiles because its for perfect for thanksgiving".
+- Steps taken: The agent (Claude Haiku 5.5) fixed the title to "Planes, Trains and Automobiles" and called `find_titles` twice.
+- Expected: Planes, Trains & Automobiles (1987, tt0093748).
+- Actual: `s=` returned only clip compilations such as "Con Air (1997) - Planes! Trains! And Automobiles!". Because the search was not empty, the `t=` fallback never ran. `t=` also misses when given "and". The card was saved as an unsorted note.
+- Severity: moderate
+- Workaround: `packages/sources/src/title-match.ts`: try "&"/"and" and plain spellings until one finds the title, then rank results by word overlap. The prompt now tells the agent to retry with the official title, up to three tries per show.
+- Suggestion: Normalise "&"/"and" and punctuation in OMDb search.

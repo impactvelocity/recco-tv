@@ -12,7 +12,6 @@ const card = (id: string, householdId: string, extra: Partial<Card> = {}): Card 
   titleId: "tt1",
   title: `Show ${id}`,
   type: "series",
-  services: ["Netflix"],
   origin: "me",
   source: "text",
   state: "new",
@@ -78,7 +77,7 @@ export function storeContract(name: string, make: () => Promise<Store>) {
 
     it("gets and replaces cards within a household only", async () => {
       await store.putCards([card("c9", hh)]);
-      expect(await store.getCard(hh, "c9")).toMatchObject({ title: "Show c9", type: "series", services: ["Netflix"] });
+      expect(await store.getCard(hh, "c9")).toMatchObject({ title: "Show c9", type: "series" });
       expect(await store.getCard("hh_other", "c9")).toBeNull();
       await store.putCards([card("c9", hh, { state: "starred" })]);
       expect((await store.getCard(hh, "c9"))?.state).toBe("starred");

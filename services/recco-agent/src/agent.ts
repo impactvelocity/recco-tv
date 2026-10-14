@@ -7,7 +7,6 @@ import { findTitlesTool } from "./tools/find-titles";
 import { listFriendsTool } from "./tools/list-friends";
 import { readPostTool } from "./tools/read-post";
 import { saveCardsTool } from "./tools/save-cards";
-import { whereToWatchTool } from "./tools/where-to-watch";
 
 export interface AgentRunReport {
   model: string;
@@ -20,7 +19,7 @@ export interface AgentRunReport {
 }
 
 /**
- * The Recco agent: reads one text with five tools and saves cards. Model calls
+ * The Recco agent: reads one text with four tools and saves cards. Model calls
  * happen only here, never in the inbox API.
  */
 export function createReccoAgent(deps: AgentDeps & { model: LanguageModel; modelName: string; timeoutMs?: number }) {
@@ -31,7 +30,6 @@ export function createReccoAgent(deps: AgentDeps & { model: LanguageModel; model
       country: household?.country ?? "ca",
       deps,
       lookedUp: new Map(),
-      services: new Map(),
       posts: new Map(),
       result: null,
     };
@@ -43,7 +41,6 @@ export function createReccoAgent(deps: AgentDeps & { model: LanguageModel; model
       tools: {
         read_post: readPostTool(ctx),
         find_titles: findTitlesTool(ctx),
-        where_to_watch: whereToWatchTool(ctx),
         list_friends: listFriendsTool(ctx),
         save_cards: saveCardsTool(ctx),
       },

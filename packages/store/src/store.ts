@@ -38,7 +38,7 @@ export interface Store {
 
   putMessage(message: RawMessage): Promise<void>;
   getMessage(householdId: string, messageId: string): Promise<RawMessage | null>;
-  updateMessage(householdId: string, messageId: string, changes: Partial<Pick<RawMessage, "status" | "error">>): Promise<void>;
+  updateMessage(householdId: string, messageId: string, changes: Partial<Pick<RawMessage, "status" | "error" | "mergedInto">>): Promise<void>;
 
   /** Records a provider message id. Returns false if it was already seen. */
   markSeen(providerMessageId: string): Promise<boolean>;

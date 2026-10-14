@@ -1,5 +1,5 @@
 import { handleInboundText } from "@recco/intake";
-import { AwsEumProvider, signWebhook, SimulatorProvider } from "@recco/sms";
+import { AwsEumProvider, signWebhook, signZernio, SimulatorProvider } from "@recco/sms";
 import { DEMO, MemoryPublisher, MemoryStore, seedDemo } from "@recco/store";
 import { beforeEach, describe, expect, it } from "vitest";
 import { createApp } from "./app";
@@ -21,6 +21,7 @@ beforeEach(async () => {
     realtime: () => ({ mode: "polling", pollIntervalMs: 5000 }),
     webhook: {
       secret: "hook-secret",
+      zernioSecret: "zernio-secret",
       provider: new AwsEumProvider(),
       accept: (text) =>
         handleInboundText(text, { store, publisher, phoneSalt: SALT, defaultCountry: "ca", startAgent: async () => {} }),
@@ -79,7 +80,7 @@ describe("inbox", () => {
   it("returns pairing state, friends with track records, and visible cards in one response", async () => {
     const body = (await (await app.request("/inbox", { headers: demo })).json()) as any;
     expect(body.pairing).toMatchObject({ paired: true, phoneLast4: "1234" });
-    expect(body.cards).toHaveLength(12);
+    expect(body.cards).toHaveLength(13);
     expect(body.friends.find((f: any) => f.name === "Jordan")).toMatchObject({ ratedUp: 3, rated: 4 });
     expect(body.cards[0].householdId).toBeUndefined();
   });
@@ -88,7 +89,7 @@ describe("inbox", () => {
     await app.request("/cards/card_demo_10", { method: "PATCH", headers: { ...demo, "content-type": "application/json" }, body: JSON.stringify({ state: "hidden" }) });
     await app.request("/dev/text", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ body: "Beef" }) });
     const body = (await (await app.request("/inbox", { headers: demo })).json()) as any;
-    expect(body.cards).toHaveLength(11);
+    expect(body.cards).toHaveLength(12);
     expect(body.pending).toHaveLength(1);
   });
 
@@ -119,7 +120,7 @@ describe("PATCH /cards/:id", () => {
 
   it("picks a candidate", async () => {
     const res = await patch("card_demo_11", { candidateTitleId: "tt0290978" });
-    expect(((await res.json()) as any).card).toMatchObject({ titleId: "tt0290978", needsCheck: false, services: ["BritBox"] });
+    expect(((await res.json()) as any).card).toMatchObject({ titleId: "tt0290978", needsCheck: false });
   });
 
   it("moves a card to another friend", async () => {
@@ -127,8 +128,14 @@ describe("PATCH /cards/:id", () => {
     expect(((await res.json()) as any).card).toMatchObject({ origin: "friend", friendId: DEMO.friendIds.steph });
   });
 
+  it("takes a card out of its post's stack", async () => {
+    const res = await patch("card_demo_08", { ungroup: true });
+    expect(((await res.json()) as any).card).not.toHaveProperty("groupId");
+  });
+
   it("rejects bad input", async () => {
     expect((await patch("card_demo_10", {})).status).toBe(400);
+    expect((await patch("card_demo_10", { ungroup: false })).status).toBe(400);
     expect((await patch("card_demo_10", { state: "deleted" })).status).toBe(400);
     expect((await patch("card_demo_10", { friendId: "fr_nobody" })).status).toBe(400);
     expect((await patch("card_demo_10", { candidateTitleId: "tt1" })).status).toBe(400);
@@ -189,5 +196,57 @@ describe("POST /webhooks/sms", () => {
     await post(raw, signWebhook(raw, "hook-secret"));
     const inbox = (await (await app.request("/inbox", { headers: auth(deviceToken) })).json()) as any;
     expect(inbox.pairing).toMatchObject({ paired: true, phoneLast4: "3333" });
+  });
+});
+
+describe("POST /webhooks/zernio", () => {
+  const received = (text: string, from: string = DEMO.phone, id = `zm-${Math.random()}`) =>
+    JSON.stringify({
+      id: `ev-${id}`,
+      event: "message.received",
+      message: { id, platform: "sms", direction: "incoming", text, sender: { id: from, phoneNumber: from }, sentAt: "2026-10-14T00:07:58.787Z" },
+      account: { platform: "sms", username: "+13322201535" },
+      timestamp: "2026-10-14T00:07:58.793Z",
+    });
+  const post = (raw: string, signature?: string) =>
+    app.request("/webhooks/zernio", {
+      method: "POST",
+      headers: { "content-type": "application/json", ...(signature ? { "x-zernio-signature": signature } : {}) },
+      body: raw,
+    });
+
+  it("accepts a signed message.received and queues the text", async () => {
+    const raw = received("King of queens - classic and funny");
+    const res = await post(raw, signZernio(raw, "zernio-secret"));
+    expect(res.status).toBe(202);
+    expect([...store.messages.values()].map((m) => [m.body, m.provider])).toEqual([["King of queens - classic and funny", "zernio"]]);
+  });
+
+  it("refuses unsigned or wrongly signed calls", async () => {
+    const raw = received("Severance");
+    expect((await post(raw)).status).toBe(401);
+    expect((await post(raw, signZernio(raw, "wrong"))).status).toBe(401);
+    expect(store.messages.size).toBe(0);
+  });
+
+  it("answers 2xx to other Zernio events so they are not retried, and stores nothing", async () => {
+    const raw = JSON.stringify({ id: "ev-test", event: "webhook.test" });
+    expect((await post(raw, signZernio(raw, "zernio-secret"))).status).toBe(202);
+    expect(store.messages.size).toBe(0);
+  });
+
+  it("processes a retried delivery once", async () => {
+    const raw = received("Severance", DEMO.phone, "same-id");
+    await post(raw, signZernio(raw, "zernio-secret"));
+    await post(raw, signZernio(raw, "zernio-secret"));
+    expect(store.messages.size).toBe(1);
+  });
+
+  it("can pair a TV", async () => {
+    const { deviceToken, pairing } = (await (await app.request("/devices", { method: "POST" })).json()) as any;
+    const raw = received(pairing.code, "+17057189390");
+    await post(raw, signZernio(raw, "zernio-secret"));
+    const inbox = (await (await app.request("/inbox", { headers: auth(deviceToken) })).json()) as any;
+    expect(inbox.pairing).toMatchObject({ paired: true, phoneLast4: "9390" });
   });
 });

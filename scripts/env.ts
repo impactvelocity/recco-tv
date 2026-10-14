@@ -9,6 +9,7 @@ export const env = {
   reccoNumber: process.env.RECCO_PHONE_NUMBER || "+16045550142",
   phoneSalt: process.env.PHONE_HASH_SALT || "local-dev-salt",
   webhookSecret: process.env.SMS_WEBHOOK_SECRET || "local-webhook-secret",
+  zernioWebhookSecret: process.env.ZERNIO_WEBHOOK_SECRET || "local-zernio-secret",
   /** MOCK_AGENT=1 (or no gateway credentials) uses the rule-based stand-in and fixtures. */
   mockAgent: (process.env.MOCK_AGENT ?? "1") === "1",
   mockAgentDelayMs: Number(process.env.MOCK_AGENT_DELAY_MS ?? 1500),

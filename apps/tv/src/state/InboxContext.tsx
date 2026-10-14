@@ -38,11 +38,6 @@ export function useInbox(): InboxContextValue {
   return value;
 }
 
-export function useCard(cardId: string): ApiCard | undefined {
-  const {inbox} = useInbox();
-  return inbox?.cards.find((c) => c.id === cardId);
-}
-
 const isExpired = (code: PairingCode | null) => !code || Date.parse(code.expiresAt) <= Date.now();
 
 export function InboxProvider({children}: {children: React.ReactNode}) {

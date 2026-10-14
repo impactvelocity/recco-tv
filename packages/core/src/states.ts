@@ -6,6 +6,8 @@ export interface CardUpdate {
   candidateTitleId?: string;
   origin?: Origin;
   friendId?: string;
+  /** Take the card out of its post's stack, so it stands on its own in the inbox. */
+  ungroup?: boolean;
 }
 
 export class CardUpdateError extends Error {}
@@ -18,6 +20,11 @@ export function applyCardUpdate<C extends CardFields>(card: C, update: CardUpdat
   let next: C = { ...card };
 
   if (update.state) next.state = update.state;
+
+  if (update.ungroup) {
+    delete next.groupId;
+    delete next.groupTitle;
+  }
 
   if (update.rating) {
     next.rating = update.rating;
@@ -54,7 +61,10 @@ function withCandidate<C extends CardFields>(card: C, pick: Candidate): C {
     type: pick.type,
     plot: pick.plot,
     posterUrl: pick.posterUrl,
-    services: pick.services ?? [],
+    imdbRating: pick.imdbRating,
+    rtRating: pick.rtRating,
+    runtime: pick.runtime,
+    genre: pick.genre,
     needsCheck: false,
     candidates: [],
   };

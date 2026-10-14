@@ -18,7 +18,7 @@ describe("fixture sources", () => {
   });
 
   it("are used wherever a key is missing", () => {
-    expect(createSources({}).live).toEqual({ titles: false, availability: false, posts: false });
+    expect(createSources({}).live).toEqual({ titles: false, posts: false, web: false });
     expect(createSources({ OMDB_API_KEY: "k" }).live.titles).toBe(true);
     expect(createSources({ OMDB_API_KEY: "k" }, { fixtures: true }).live.titles).toBe(false);
   });

@@ -1,6 +1,6 @@
 import { MemoryPublisher, MemoryStore } from "@recco/store";
 import { beforeEach, describe, expect, it } from "vitest";
-import { saveCards } from "./save-cards";
+import { cleanGroupTitle, MAX_SUGGESTIONS, saveCards } from "./save-cards";
 
 const now = () => new Date("2026-10-08T12:00:00Z");
 let store: MemoryStore;
@@ -43,6 +43,21 @@ describe("saveCards", () => {
     expect(b.saved[0]).toMatchObject({ origin: "internet", source: "link", sourceUrl: "https://tiktok.com/x" });
   });
 
+  it("files ideas she asked for under Recco's picks, at most seven, as one named stack", async () => {
+    const j = await job("jordan wants movies for a stormy night");
+    const ids = Array.from({ length: 9 }, (_, i) => `tt${i + 1}`);
+    const drafts = ids.map((id) => ({ kind: "title" as const, titleId: id, title: `Movie ${id}`, friendName: "Jordan", note: "movies for a stormy night" }));
+    const { saved } = await saveCards(j, drafts, new Set(ids), { store, publisher, now }, { suggestions: true, groupTitle: "Stormy Night Movies" });
+    expect(saved).toHaveLength(MAX_SUGGESTIONS);
+    expect(saved.every((c) => c.origin === "recco" && !c.friendId && c.groupTitle === "Stormy Night Movies" && c.groupId === saved[0]?.groupId)).toBe(true);
+  });
+
+  it("keeps her words, not Recco's picks, when no idea survives the lookup", async () => {
+    const j = await job("movies for a stormy night");
+    const { saved } = await saveCards(j, [{ kind: "title", titleId: "tt9999", title: "Made Up" }], new Set(["tt1"]), { store, publisher, now }, { suggestions: true });
+    expect(saved).toEqual([expect.objectContaining({ kind: "unsorted", origin: "me", note: "movies for a stormy night" })]);
+  });
+
   it("never invents a title: unknown ids are rejected and her words are kept", async () => {
     const j = await job("some show nobody has heard of");
     const { saved, rejected } = await saveCards(j, [{ kind: "title", titleId: "tt9999", title: "Made Up" }], new Set(["tt1"]), { store, publisher, now });
@@ -81,5 +96,15 @@ describe("unsortedTitle", () => {
     expect(unsortedTitle("https://youtu.be/abc")).toBe("YouTube link");
     expect(unsortedTitle("https://example.com/x")).toBe("A link");
     expect(unsortedTitle("that show with the guy in the bunker")).toBe("that show with the guy in the bunker");
+  });
+});
+
+describe("cleanGroupTitle", () => {
+  it("keeps one short line with no links", () => {
+    expect(cleanGroupTitle("  Thanksgiving\nMovie Night ")).toBe("Thanksgiving Movie Night");
+    expect(cleanGroupTitle("Watch https://evil.example now")).toBe("Watch now");
+    expect(cleanGroupTitle("A".repeat(60))).toHaveLength(40);
+    expect(cleanGroupTitle("  ")).toBeUndefined();
+    expect(cleanGroupTitle(null)).toBeUndefined();
   });
 });

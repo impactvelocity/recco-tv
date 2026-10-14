@@ -1,5 +1,6 @@
 import type { TitleType } from "@recco/core";
 import { cached, type Cache } from "./cache";
+import { closeness, isCloseMatch, titleVariants } from "./title-match";
 import type { FetchLike, TitleCandidate, TitleLookup, TitleQuery } from "./types";
 
 /**
@@ -37,18 +38,31 @@ export function createOmdb({
     async search(query: TitleQuery) {
       const key = `omdb:search:${query.title.trim().toLowerCase()}|${query.year ?? ""}|${query.type ?? ""}`;
       const found = await cached(cache, key, async () => {
-        const params: Record<string, string> = { s: query.title.trim() };
-        if (query.year) params.y = query.year.slice(0, 4);
-        if (query.type) params.type = query.type;
-        const body = await get(params);
-        let results = body.Response === "True" && Array.isArray(body.Search) ? body.Search.map(fromSearch) : [];
-        if (results.length === 0) {
+        const filters: Record<string, string> = {};
+        if (query.year) filters.y = query.year.slice(0, 4);
+        if (query.type) filters.type = query.type;
+        const byId = new Map<string, TitleCandidate>();
+        const add = (c: TitleCandidate | null) => {
+          if (c && (c.type === "movie" || c.type === "series") && !byId.has(c.imdbId)) byId.set(c.imdbId, c);
+        };
+        const hasClose = () => [...byId.values()].some((c) => isCloseMatch(query.title, c.title));
+
+        // Try other spellings ("&" for "and", no punctuation) until one finds the title itself.
+        for (const title of titleVariants(query.title)) {
+          const body = await get({ ...filters, s: title });
+          if (body.Response === "True" && Array.isArray(body.Search)) body.Search.forEach((r) => add(fromSearch(r)));
+          if (hasClose()) break;
           // Word search misses some exact titles; the title endpoint catches them.
-          const { s: title, ...rest } = params;
-          const exact = await get({ ...rest, t: title! });
-          if (exact.Response === "True") results = [fromTitle(exact)];
+          const exact = await get({ ...filters, t: title });
+          if (exact.Response === "True") add(fromTitle(exact));
+          if (hasClose()) break;
         }
-        return results.filter((r): r is TitleCandidate => !!r && (r.type === "movie" || r.type === "series")).slice(0, 5);
+        // Closest first; OMDb's order breaks ties.
+        return [...byId.values()]
+          .map((c, i) => ({ c, i, score: isCloseMatch(query.title, c.title) ? 2 : closeness(query.title, c.title) }))
+          .sort((a, b) => b.score - a.score || a.i - b.i)
+          .map(({ c }) => c)
+          .slice(0, 5);
       });
       // Plots for the leading candidates, so "Check these" can tell them apart.
       return Promise.all(
@@ -78,7 +92,17 @@ function fromTitle(r: Record<string, unknown>): TitleCandidate {
     type: toType(s("Type")),
     plot: s("Plot"),
     posterUrl: poster(s("Poster")),
+    imdbRating: s("imdbRating"),
+    rtRating: rottenTomatoes(r.Ratings),
+    runtime: s("Runtime"),
+    genre: s("Genre")?.split(",")[0]?.trim() || undefined,
   };
+}
+
+function rottenTomatoes(ratings: unknown): string | undefined {
+  if (!Array.isArray(ratings)) return undefined;
+  const rt = ratings.find((x) => x?.Source === "Rotten Tomatoes");
+  return typeof rt?.Value === "string" ? rt.Value : undefined;
 }
 
 function toType(t: string | undefined): TitleType {

@@ -10,3 +10,4 @@ coverage/
 *.log
 .recco-local/
 .recco-outputs.json
+zai_*

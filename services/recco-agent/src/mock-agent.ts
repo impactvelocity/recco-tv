@@ -73,9 +73,9 @@ export function readText(body: string): { drafts: DraftCard[]; lookedUp: Set<str
 }
 
 function fromFixture(t: FixtureTitle) {
-  return { titleId: t.imdbId, title: t.title, year: t.year, type: t.type, plot: t.plot, services: t.services };
+  return { titleId: t.imdbId, title: t.title, year: t.year, type: t.type, plot: t.plot };
 }
 
 function toCandidate(t: FixtureTitle): Candidate {
-  return { titleId: t.imdbId, title: t.title, year: t.year, type: t.type, plot: t.plot, services: t.services };
+  return { titleId: t.imdbId, title: t.title, year: t.year, type: t.type, plot: t.plot };
 }

@@ -30,7 +30,7 @@ const run = (script: Parameters<typeof scriptedModel>[0], j: AgentJob) =>
 const cardsFor = (j: AgentJob) => [...store.cards.values()].filter((c) => c.messageId === j.messageId);
 
 describe("Recco agent", () => {
-  it("looks a title up and saves it under an existing friend, with services filled in", async () => {
+  it("looks a title up and saves it under an existing friend", async () => {
     const j = await job("King of Queens - jordan said it was funny and worth watching");
     const report = await run(
       [
@@ -40,7 +40,7 @@ describe("Recco agent", () => {
       j,
     );
     expect(cardsFor(j)).toEqual([
-      expect.objectContaining({ titleId: "tt0165581", friendId: DEMO.friendIds.jordan, services: ["Prime Video"], note: "said it was funny and worth watching", state: "new" }),
+      expect.objectContaining({ titleId: "tt0165581", friendId: DEMO.friendIds.jordan, note: "said it was funny and worth watching", state: "new" }),
     ]);
     expect(report).toMatchObject({ steps: 2, fellBack: false });
     expect((await store.getMessage(j.householdId, j.messageId))?.status).toBe("done");
@@ -79,7 +79,7 @@ describe("Recco agent", () => {
     expect(cardsFor(j)).toEqual([expect.objectContaining({ origin: "internet", friendId: undefined, source: "link", sourceUrl: url })]);
   });
 
-  it("builds a Check these card with candidates and their services", async () => {
+  it("builds a Check these card with candidates", async () => {
     const j = await job("the office");
     await run(
       [
@@ -90,10 +90,7 @@ describe("Recco agent", () => {
     );
     const [card] = cardsFor(j);
     expect(card).toMatchObject({ needsCheck: true, titleId: undefined });
-    expect(card?.candidates.map((c) => [c.titleId, c.services])).toEqual([
-      ["tt0386676", ["Prime Video"]],
-      ["tt0290978", ["BritBox"]],
-    ]);
+    expect(card?.candidates.map((c) => c.titleId)).toEqual(["tt0386676", "tt0290978"]);
   });
 
   it("keeps her words when nothing is saved (the model never called save_cards)", async () => {
@@ -101,19 +98,6 @@ describe("Recco agent", () => {
     const report = await run(["stop"], j);
     expect(report.fellBack).toBe(true);
     expect(cardsFor(j)).toEqual([expect.objectContaining({ kind: "unsorted", note: "hmm something with dragons" })]);
-  });
-
-  it("saves still happen with no services when availability fails (R5.3)", async () => {
-    vi.spyOn(sources.availability, "services").mockRejectedValue(new Error("down"));
-    const j = await job("Severance");
-    await run(
-      [
-        [{ tool: "find_titles", input: { title: "Severance" } }],
-        [{ tool: "save_cards", input: { cards: [{ imdbId: "tt11280740", friendName: null, note: null, needsCheck: false, candidateImdbIds: [] }] } }],
-      ],
-      j,
-    );
-    expect(cardsFor(j)).toEqual([expect.objectContaining({ titleId: "tt11280740", services: [] })]);
   });
 
   it("marks the message failed and tells the TVs when the model errors (R3.8)", async () => {

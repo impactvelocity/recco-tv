@@ -10,7 +10,7 @@ const toCandidate = (t: FixtureTitle): TitleCandidate => ({
   plot: t.plot,
 });
 
-/** Recorded titles, availability and posts. Used for MOCK_AGENT=1, tests, and the eval. */
+/** Recorded titles and posts. Used for MOCK_AGENT=1, tests, and the eval. */
 export function createFixtureSources(): Sources {
   return {
     titles: {
@@ -22,11 +22,6 @@ export function createFixtureSources(): Sources {
       async details(imdbId) {
         const t = FIXTURE_TITLES.find((f) => f.imdbId === imdbId);
         return t ? toCandidate(t) : null;
-      },
-    },
-    availability: {
-      async services(imdbId) {
-        return FIXTURE_TITLES.find((f) => f.imdbId === imdbId)?.services ?? [];
       },
     },
     posts: {

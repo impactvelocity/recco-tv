@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { MemoryCache, SEVEN_DAYS_MS } from "./cache";
 import * as R from "./fixtures/api/recorded";
+import { routePosts } from "./create";
+import { createJinaReader, mainText } from "./jina";
 import { createOmdb } from "./omdb";
 import { createScrapeCreators, platformOf, vttToText } from "./scrapecreators";
-import { createStreamingAvailability, servicesFrom } from "./streaming-availability";
-import type { FetchLike } from "./types";
+import type { FetchLike, PostReader } from "./types";
 
 /** A fake fetch that answers by URL and records calls. */
 function fakeFetch(routes: [RegExp, unknown | ((url: string) => { status: number; body: unknown })][]) {
@@ -38,6 +39,8 @@ describe("OMDb", () => {
       ["tt1711525", "movie"],
     ]);
     expect(found[0]).toMatchObject({ plot: "A mockumentary on a group of typical office workers.", posterUrl: expect.stringMatching(/^https:/) });
+    expect(found[0]).toMatchObject({ imdbRating: "9.0", rtRating: "81%", runtime: "22 min", genre: "Comedy" });
+    expect(found[1]).toMatchObject({ imdbRating: undefined, rtRating: undefined, runtime: undefined, genre: "Comedy" });
     expect(found[1]?.posterUrl).toBeUndefined();
     expect(found[2]?.plot).toBeUndefined();
   });
@@ -47,6 +50,21 @@ describe("OMDb", () => {
     expect(await createOmdb({ apiKey: "k", fetch }).search({ title: "Nothing" })).toEqual([]);
     expect(calls.map((c) => new URL(c.url).searchParams.has("t"))).toEqual([false, true]);
     expect(calls.every((c) => !new URL(c.url).searchParams.has("s") || !new URL(c.url).searchParams.has("t"))).toBe(true);
+  });
+
+  it("tries '&' for 'and' when the search finds only clips, and ranks the real title first", async () => {
+    const clip = { Title: "Con Air (1997) - Planes! Trains! And Automobiles!", Year: "1997", imdbID: "tt15838022", Type: "movie", Poster: "N/A" };
+    const real = { Title: "Planes, Trains & Automobiles", Year: "1987", imdbID: "tt0093748", Type: "movie", Poster: "N/A" };
+    const { fetch, calls } = fakeFetch([
+      [/[?&]s=Planes%2C\+Trains\+and\+Automobiles/, { Response: "True", Search: [clip] }],
+      [/[?&]t=Planes%2C\+Trains\+and\+Automobiles/, R.OMDB_NOT_FOUND],
+      [/[?&]s=Planes%2C\+Trains\+%26\+Automobiles/, { Response: "True", Search: [clip, real] }],
+      [/[?&]i=/, R.OMDB_NOT_FOUND],
+    ]);
+    const found = await createOmdb({ apiKey: "k", fetch }).search({ title: "Planes, Trains and Automobiles" });
+    expect(found.map((c) => c.imdbId)).toEqual(["tt0093748", "tt15838022"]);
+    // Stops once the title itself turns up: no plain-spelling search.
+    expect(calls.filter((c) => /[?&][st]=/.test(c.url))).toHaveLength(3);
   });
 
   it("caches searches and titles for seven days", async () => {
@@ -61,31 +79,6 @@ describe("OMDb", () => {
     now = SEVEN_DAYS_MS + 1;
     await omdb.search({ title: "The Office" });
     expect(calls.length).toBeGreaterThan(first);
-  });
-});
-
-describe("Streaming Availability", () => {
-  it("lists services that carry the title, once each, ignoring rent/buy and deep links", () => {
-    expect(servicesFrom(R.SA_SHOW_CA, "ca")).toEqual(["Prime Video", "Crave", "Tubi"]);
-    expect(servicesFrom(R.SA_SHOW_CA, "us")).toEqual([]);
-    expect(servicesFrom(null, "ca")).toEqual([]);
-  });
-
-  it("calls RapidAPI with the IMDb id and country, and treats 404 as no services", async () => {
-    const { fetch, calls } = fakeFetch([
-      [/shows\/tt0386676/, R.SA_SHOW_CA],
-      [/shows\/tt0000001/, () => ({ status: 404, body: {} })],
-    ]);
-    const sa = createStreamingAvailability({ apiKey: "k", fetch });
-    expect(await sa.services("tt0386676", "ca")).toEqual(["Prime Video", "Crave", "Tubi"]);
-    expect(await sa.services("tt0000001", "ca")).toEqual([]);
-    expect(calls[0]?.url).toBe("https://streaming-availability.p.rapidapi.com/shows/tt0386676?country=ca&series_granularity=show");
-    expect(calls[0]?.headers).toMatchObject({ "X-RapidAPI-Key": "k" });
-  });
-
-  it("throws on server errors so the caller can save the card with no services (R5.3)", async () => {
-    const { fetch } = fakeFetch([[/shows/, () => ({ status: 500, body: {} })]]);
-    await expect(createStreamingAvailability({ apiKey: "k", fetch }).services("tt1", "ca")).rejects.toThrow();
   });
 });
 
@@ -148,5 +141,73 @@ describe("ScrapeCreators", () => {
 
   it("turns WEBVTT into plain words", () => {
     expect(vttToText("WEBVTT\n\n1\n00:00:00.000 --> 00:00:01.000\nHello\n\n2\n00:00:01.000 --> 00:00:02.000\nthere")).toBe("Hello there");
+  });
+});
+
+describe("Jina Reader", () => {
+  const page = (data: Record<string, unknown>) => ({ code: 200, status: 20000, data });
+  const LETTERBOXD = "https://letterboxd.com/film/planes-trains-and-automobiles/";
+
+  it("reads a page's title, description and text, with the key as a bearer token", async () => {
+    const { fetch, calls } = fakeFetch([
+      [/r\.jina\.ai/, page({ title: "Planes, Trains and Automobiles (1987)", description: "Directed by John Hughes", content: "  Neal Page is heading home for Thanksgiving.  ", httpStatus: 200 })],
+    ]);
+    const post = await createJinaReader({ apiKey: "k", fetch }).read(LETTERBOXD);
+    expect(post).toEqual({
+      url: LETTERBOXD,
+      platform: "web",
+      caption: "Planes, Trains and Automobiles (1987)\nDirected by John Hughes",
+      transcript: "Neal Page is heading home for Thanksgiving.",
+    });
+    expect(calls[0]?.url).toBe(`https://r.jina.ai/${LETTERBOXD}`);
+    expect(calls[0]?.headers).toMatchObject({ Authorization: "Bearer k", Accept: "application/json" });
+  });
+
+  it("keeps a redirected page but drops a page that is gone", async () => {
+    const reader = (httpStatus: number) =>
+      createJinaReader({ apiKey: "k", fetch: fakeFetch([[/r\.jina\.ai/, page({ title: "T", content: "text", httpStatus })]]).fetch });
+    expect(await reader(302).read("https://www.imdb.com/title/tt0093748/")).not.toBeNull();
+    expect(await reader(404).read("https://example.com/gone")).toBeNull();
+  });
+
+  it("cuts long pages, skips links that are not web addresses, and fails on a Jina error", async () => {
+    const { fetch, calls } = fakeFetch([
+      [/long/, page({ title: "Long", content: "x".repeat(20_000) })],
+      [/broken/, () => ({ status: 401, body: {} })],
+    ]);
+    const jina = createJinaReader({ apiKey: "k", fetch });
+    expect((await jina.read("https://example.com/long"))?.transcript).toHaveLength(12_000);
+    expect(await jina.read("ftp://example.com/file")).toBeNull();
+    await expect(jina.read("https://example.com/broken")).rejects.toThrow("Jina Reader HTTP 401");
+    expect(calls).toHaveLength(2);
+  });
+});
+
+describe("mainText", () => {
+  it("skips the site menu before the main heading and squeezes blank lines", () => {
+    const menu = "Menu\n\nMovies\nTV shows\n\n\n\nSign in\n".repeat(3);
+    const list = "#### 1. Planes, Trains & Automobiles\n".repeat(5).trim();
+    expect(mainText(`${menu}# Thanksgiving Movies\n\n   \n\n\n${list}`)).toBe(`# Thanksgiving Movies\n\n${list}`);
+    // No heading, or one deep in the page: keep everything.
+    expect(mainText("Severance is a TV series.\n\n\n\nCast")).toBe("Severance is a TV series.\n\nCast");
+    expect(mainText(`intro\n${"x".repeat(100)}\n# Late heading`)).toMatch(/^intro/);
+  });
+});
+
+describe("routePosts", () => {
+  it("sends TikTok, Instagram and YouTube to the social reader and every other link to the web reader", async () => {
+    const seen: string[] = [];
+    const reader = (name: string): PostReader => ({ read: async (url) => (seen.push(`${name} ${url}`), null) });
+    const posts = routePosts({ social: reader("social"), web: reader("web") });
+    for (const url of ["https://vm.tiktok.com/x", "https://www.instagram.com/reel/x", "https://youtu.be/x", "https://www.imdb.com/title/tt0093748/", "https://vulture.com/a"]) {
+      await posts.read(url);
+    }
+    expect(seen).toEqual([
+      "social https://vm.tiktok.com/x",
+      "social https://www.instagram.com/reel/x",
+      "social https://youtu.be/x",
+      "web https://www.imdb.com/title/tt0093748/",
+      "web https://vulture.com/a",
+    ]);
   });
 });

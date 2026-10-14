@@ -14,7 +14,15 @@ import {
   type Card,
   type Device,
 } from "@recco/core";
-import { verifyWebhook, SIGNATURE_HEADER, type InboundText, type SmsProvider } from "@recco/sms";
+import {
+  verifyWebhook,
+  verifyZernioSignature,
+  SIGNATURE_HEADER,
+  ZERNIO_SIGNATURE_HEADER,
+  ZernioProvider,
+  type InboundText,
+  type SmsProvider,
+} from "@recco/sms";
 import type { Publisher, Store } from "@recco/store";
 import { Hono } from "hono";
 import { z } from "zod";
@@ -38,6 +46,8 @@ export interface ApiDeps {
     secret: string;
     provider: SmsProvider;
     accept: (text: InboundText) => Promise<unknown>;
+    /** Turns on POST /webhooks/zernio, signed by Zernio with this secret. */
+    zernioSecret?: string;
   };
   /** Local and demo only: feed a fake text into intake. */
   dev?: {
@@ -52,6 +62,7 @@ const cardUpdateSchema = z
   .object({
     state: z.enum(["new", "starred", "hidden", "watched"]).optional(),
     rating: z.enum(["up", "down"]).optional(),
+    ungroup: z.literal(true).optional(),
     candidateTitleId: z.string().min(1).optional(),
     origin: z.enum(["friend", "me", "internet"]).optional(),
     friendId: z.string().min(1).optional(),
@@ -124,6 +135,27 @@ export function createApp(deps: ApiDeps) {
       // Same answer whatever happened, so callers cannot probe which phones are linked.
       return c.json({ accepted: true }, 202);
     });
+
+    if (webhook.zernioSecret) {
+      const zernioSecret = webhook.zernioSecret;
+      const zernio = new ZernioProvider();
+      app.post("/webhooks/zernio", async (c) => {
+        const raw = await c.req.text();
+        if (!verifyZernioSignature(raw, c.req.header(ZERNIO_SIGNATURE_HEADER), zernioSecret)) {
+          return c.json({ error: "Bad signature" }, 401);
+        }
+        let payload: unknown;
+        try {
+          payload = JSON.parse(raw);
+        } catch {
+          return c.json({ error: "Body is not JSON" }, 400);
+        }
+        const text = zernio.parseInbound(payload);
+        // Other Zernio events (tests, outgoing, other platforms) get a 2xx so Zernio does not retry them.
+        if (text) await webhook.accept(text);
+        return c.json({ accepted: true }, 202);
+      });
+    }
   }
 
   app.post("/devices/code", async (c) => {
@@ -153,7 +185,6 @@ export function createApp(deps: ApiDeps) {
     return c.json({
       serverTime,
       pairing: { paired: true, phoneLast4: inbox.household.phoneLast4, phoneNumber: deps.reccoNumber },
-      household: { country: inbox.household.country },
       friends: withTrackRecords(inbox.friends, inbox.cards).map(({ householdId: _, ...f }) => f),
       cards: inbox.cards.filter((card) => card.state !== "hidden").map(publicCard),
       pending: inbox.pendingMessages.map((m) => ({ messageId: m.id, receivedAt: m.receivedAt })),

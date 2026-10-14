@@ -7,13 +7,14 @@ import {
   type Candidate,
   type Card,
   type Friend,
+  type TitleFacts,
   type TitleType,
 } from "@recco/core";
 import { platformOf } from "@recco/sources";
 import type { Publisher, Store } from "@recco/store";
 
 /** What the agent hands to save_cards for each show. */
-export interface DraftCard {
+export interface DraftCard extends TitleFacts {
   kind: "title" | "unsorted";
   titleId?: string;
   title: string;
@@ -21,7 +22,6 @@ export interface DraftCard {
   type?: TitleType;
   plot?: string;
   posterUrl?: string;
-  services?: string[];
   /** As written in the text. Matched or created here. */
   friendName?: string | null;
   /** Her words, unedited. */
@@ -52,6 +52,7 @@ export async function saveCards(
   drafts: DraftCard[],
   lookedUpTitleIds: ReadonlySet<string>,
   deps: SaveCardsDeps,
+  { groupTitle, suggestions = false }: { groupTitle?: string | null; suggestions?: boolean } = {},
 ): Promise<SaveCardsResult> {
   const now = deps.now?.() ?? new Date();
   const household = await deps.store.getHousehold(job.householdId);
@@ -65,14 +66,18 @@ export async function saveCards(
   });
 
   const link = extractUrls(job.body)[0];
-  const accepted: DraftCard[] = valid.length > 0 ? valid : [unsortedNote(job.body, link, drafts[0]?.friendName)];
+  const accepted: DraftCard[] =
+    valid.length > 0 ? (suggestions ? valid.slice(0, MAX_SUGGESTIONS) : valid) : [unsortedNote(job.body, link, drafts[0]?.friendName)];
+  // The agent's own ideas are never filed as a person's recommendation.
+  const picks = suggestions && valid.length > 0;
 
   const friends = await deps.store.listFriends(job.householdId);
   const groupId = accepted.length > 1 ? `grp_${newId(now)}` : undefined;
+  const title = groupId ? cleanGroupTitle(groupTitle) : undefined;
 
   const saved: Card[] = [];
   for (const [i, d] of accepted.entries()) {
-    const friend = await friendFor(d.friendName, friends, job.householdId, deps.store, now);
+    const friend = picks ? null : await friendFor(d.friendName, friends, job.householdId, deps.store, now);
     const createdAt = new Date(now.getTime() + i).toISOString();
     saved.push({
       id: `card_${newId(new Date(now.getTime() + i))}`,
@@ -85,8 +90,11 @@ export async function saveCards(
       type: d.type ?? "unknown",
       plot: d.plot,
       posterUrl: d.posterUrl,
-      services: d.services ?? [],
-      origin: friend ? "friend" : originWithoutFriend(job.body),
+      imdbRating: d.imdbRating,
+      rtRating: d.rtRating,
+      runtime: d.runtime,
+      genre: d.genre,
+      origin: picks ? "recco" : friend ? "friend" : originWithoutFriend(job.body),
       friendId: friend?.id,
       note: d.note,
       source: link ? "link" : "text",
@@ -95,6 +103,7 @@ export async function saveCards(
       needsCheck: d.needsCheck ?? false,
       candidates: (d.candidates ?? []).slice(0, 3),
       groupId,
+      groupTitle: title,
       messageId: job.messageId,
     });
   }
@@ -116,6 +125,16 @@ function rejectionReason(d: DraftCard, lookedUp: ReadonlySet<string>): string | 
   }
   if (!d.titleId) return "missing titleId";
   return lookedUp.has(d.titleId) ? null : `titleId ${d.titleId} was not returned by find_titles`;
+}
+
+/** The most titles one request for ideas can add ("movies for a stormy night"). */
+export const MAX_SUGGESTIONS = 7;
+
+/** The model's stack name, made safe to show: one short line, no links. */
+export function cleanGroupTitle(raw: string | null | undefined): string | undefined {
+  const line = (raw ?? "").replace(/https?:\/\/\S+/gi, " ").replace(/\s+/g, " ").trim();
+  if (!line) return undefined;
+  return line.length <= 40 ? line : `${line.slice(0, 39).trimEnd()}…`;
 }
 
 function unsortedNote(body: string, link: string | undefined, friendName: string | null | undefined): DraftCard {

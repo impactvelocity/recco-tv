@@ -192,8 +192,8 @@ export class ReccoStack extends Stack {
     const api = fn("Api", "services/api/src/lambda.ts", {
       environment: {
         TOPIC_ARN: topic.topicArn,
-        // The number shown on the pairing screen. Placeholder until a real number is live (task 4.4).
-        RECCO_PHONE_NUMBER: this.node.tryGetContext("reccoPhoneNumber") ?? "+16045550142",
+        // The number shown on the pairing screen: the Zernio number (task 4.4).
+        RECCO_PHONE_NUMBER: this.node.tryGetContext("reccoPhoneNumber") ?? "+13322201535",
       },
     });
     table.grantReadWriteData(api);

@@ -2,5 +2,5 @@
 export const ENV = {
   apiBase: "https://bnorqwlyoeuozcnq4rcirthaey0kyrtr.lambda-url.us-east-2.on.aws",
   posters: true,
-  debugBase: "http://10.0.2.2:8787",
+  debugBase: "https://bnorqwlyoeuozcnq4rcirthaey0kyrtr.lambda-url.us-east-2.on.aws",
 } as const;

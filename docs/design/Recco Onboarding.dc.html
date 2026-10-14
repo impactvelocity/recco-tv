@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet><meta name="design_doc_mode" content="canvas"><style>*{box-sizing:border-box}body{margin:0;background:#06080C;color:#fff;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","Helvetica Neue",Helvetica,sans-serif}a{color:#fff}a:hover{color:#D0D4DA}@keyframes rspin{to{transform:rotate(360deg)}}</style></helmet>
+<section style="padding:72px 80px;display:flex;flex-direction:column;gap:24px">
+  <div style="font-size:24px;color:#9AA0A8;max-width:1200px;text-wrap:pretty">Onboarding — nothing takes focus until the Inbox. She texts the code from her phone; the TV advances on its own. Same theme and overlay tweaks as the main app.</div>
+  <div style="display:flex;flex-wrap:wrap;gap:80px;align-items:flex-start">
+  
+  <div id="1a" style="display:flex;flex-direction:column;gap:16px">
+    <div style="display:flex;gap:14px;align-items:baseline"><span style="background:#3CC7F5;color:#06080C;font-weight:700;font-size:20px;padding:4px 12px;border-radius:8px">1a</span><span style="font-size:24px;color:#9AA0A8">Waiting for a code</span></div>
+    <div data-board="1a" data-screen-label="1a Waiting for a code" style="position:relative;width:1920px;height:1080px;overflow:hidden;background:var(--canvas,#0E1218);color:var(--text,#fff);flex:none;border-radius:6px">
+      <div style="position:absolute;inset:0;background-image:var(--bgimg,none);background-size:cover;background-position:center"></div>
+      <sc-if value="{{ hasVideo }}" hint-placeholder-val="{{ false }}"><video data-bgvideo="1" autoPlay="{{ true }}" muted="{{ true }}" loop="{{ true }}" playsInline="{{ true }}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover"></video></sc-if>
+      <div style="position:absolute;inset:0;background:var(--canvas,#0E1218);opacity:{{ dimOpacity }}"></div>
+      <div style="position:absolute;inset:0;background:{{ overlayBg }};opacity:{{ overlayOpacity }}"></div>
+      <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:28px;padding:0 200px"><img src="./assets/recco-logo.png" alt="Recco" style="height:120px;width:auto;display:block"><div style="font-size:32px;color:var(--text2,#9AA0A8);margin-top:12px">Getting a code…</div><div style="width:96px;height:96px;border-radius:50%;border:7px solid rgba(255,255,255,.18);border-top-color:var(--accent2,#3CC7F5);animation:rspin 1s linear infinite"></div></div>
+    </div>
+  </div>
+  
+  <div id="1b" style="display:flex;flex-direction:column;gap:16px">
+    <div style="display:flex;gap:14px;align-items:baseline"><span style="background:#3CC7F5;color:#06080C;font-weight:700;font-size:20px;padding:4px 12px;border-radius:8px">1b</span><span style="font-size:24px;color:#9AA0A8">Code shown — the largest text in the app, readable from the couch</span></div>
+    <div data-board="1b" data-screen-label="1b Code shown — the largest text in the app, readable from the couch" style="position:relative;width:1920px;height:1080px;overflow:hidden;background:var(--canvas,#0E1218);color:var(--text,#fff);flex:none;border-radius:6px">
+      <div style="position:absolute;inset:0;background-image:var(--bgimg,none);background-size:cover;background-position:center"></div>
+      <sc-if value="{{ hasVideo }}" hint-placeholder-val="{{ false }}"><video data-bgvideo="1" autoPlay="{{ true }}" muted="{{ true }}" loop="{{ true }}" playsInline="{{ true }}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover"></video></sc-if>
+      <div style="position:absolute;inset:0;background:var(--canvas,#0E1218);opacity:{{ dimOpacity }}"></div>
+      <div style="position:absolute;inset:0;background:{{ overlayBg }};opacity:{{ overlayOpacity }}"></div>
+      <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:28px;padding:0 200px"><img src="./assets/recco-logo.png" alt="Recco" style="height:84px;width:auto;display:block">
+        <div style="font-size:30px;color:var(--text2,#9AA0A8);margin-top:20px">On your phone, text</div>
+        <div style="display:flex;gap:20px"><div style="width:170px;height:210px;border-radius:24px;background:var(--surface2,rgba(14,18,24,.92));border:2px solid var(--border,rgba(255,255,255,.18));box-shadow:0 16px 40px rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;font-size:150px;font-weight:700;line-height:1">4</div><div style="width:170px;height:210px;border-radius:24px;background:var(--surface2,rgba(14,18,24,.92));border:2px solid var(--border,rgba(255,255,255,.18));box-shadow:0 16px 40px rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;font-size:150px;font-weight:700;line-height:1">8</div><div style="width:170px;height:210px;border-radius:24px;background:var(--surface2,rgba(14,18,24,.92));border:2px solid var(--border,rgba(255,255,255,.18));box-shadow:0 16px 40px rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;font-size:150px;font-weight:700;line-height:1">2</div><div style="width:170px;height:210px;border-radius:24px;background:var(--surface2,rgba(14,18,24,.92));border:2px solid var(--border,rgba(255,255,255,.18));box-shadow:0 16px 40px rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;font-size:150px;font-weight:700;line-height:1">1</div><div style="width:170px;height:210px;border-radius:24px;background:var(--surface2,rgba(14,18,24,.92));border:2px solid var(--border,rgba(255,255,255,.18));box-shadow:0 16px 40px rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;font-size:150px;font-weight:700;line-height:1">3</div></div>
+        <div style="font-size:44px;color:var(--text2,#9AA0A8)">to <span style="color:var(--text,#fff);font-weight:700">(604) 555-0142</span></div>
+        <div style="font-size:28px;line-height:1.45;color:var(--text2,#9AA0A8);max-width:900px;text-wrap:pretty">That connects this TV to your phone. After that, text Recco any show you hear about and it shows up here.</div>
+        <div style="display:flex;align-items:center;gap:16px;margin-top:8px;font-size:25px;font-weight:600;color:var(--text,#fff);background:var(--surface2,rgba(14,18,24,.92));border:1px solid var(--border,rgba(255,255,255,.18));border-radius:999px;padding:14px 28px 14px 18px;box-shadow:0 12px 30px rgba(0,0,0,.35)"><div style="width:30px;height:30px;border-radius:50%;border:4px solid rgba(255,255,255,.18);border-top-color:var(--accent2,#3CC7F5);animation:rspin 1s linear infinite"></div>Waiting for your text…</div></div>
+    </div>
+  </div>
+  
+  <div id="1c" style="display:flex;flex-direction:column;gap:16px">
+    <div style="display:flex;gap:14px;align-items:baseline"><span style="background:#3CC7F5;color:#06080C;font-weight:700;font-size:20px;padding:4px 12px;border-radius:8px">1c</span><span style="font-size:24px;color:#9AA0A8">Connected — shows for a moment, then the Inbox opens</span></div>
+    <div data-board="1c" data-screen-label="1c Connected — shows for a moment, then the Inbox opens" style="position:relative;width:1920px;height:1080px;overflow:hidden;background:var(--canvas,#0E1218);color:var(--text,#fff);flex:none;border-radius:6px">
+      <div style="position:absolute;inset:0;background-image:var(--bgimg,none);background-size:cover;background-position:center"></div>
+      <sc-if value="{{ hasVideo }}" hint-placeholder-val="{{ false }}"><video data-bgvideo="1" autoPlay="{{ true }}" muted="{{ true }}" loop="{{ true }}" playsInline="{{ true }}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover"></video></sc-if>
+      <div style="position:absolute;inset:0;background:var(--canvas,#0E1218);opacity:{{ dimOpacity }}"></div>
+      <div style="position:absolute;inset:0;background:{{ overlayBg }};opacity:{{ overlayOpacity }}"></div>
+      <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:28px;padding:0 200px"><img src="./assets/recco-logo.png" alt="Recco" style="height:84px;width:auto;display:block">
+        <div style="display:flex;align-items:center;gap:36px;margin-top:20px"><div style="width:120px;height:120px;border-radius:50%;background:var(--accent2,#3CC7F5);display:flex;align-items:center;justify-content:center;color:var(--onAccent,#06080C);box-shadow:0 20px 60px rgba(0,0,0,.4);flex:none"><svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 5 5 9-10"></path></svg></div><div style="font-size:128px;font-weight:700;letter-spacing:-.03em;line-height:1">Connected</div></div>
+        <div style="font-size:34px;color:var(--text2,#9AA0A8)">to the phone ending <span style="color:var(--text,#fff);font-weight:600">4821</span></div></div>
+    </div>
+  </div>
+  
+  <div id="2b" style="display:flex;flex-direction:column;gap:16px">
+    <div style="display:flex;gap:14px;align-items:baseline"><span style="background:#3CC7F5;color:#06080C;font-weight:700;font-size:20px;padding:4px 12px;border-radius:8px">2b</span><span style="font-size:24px;color:#9AA0A8">Empty inbox — Settings takes focus since there are no cards</span></div>
+    <div data-board="2b" data-screen-label="2b Empty inbox — Settings takes focus since there are no cards" style="position:relative;width:1920px;height:1080px;overflow:hidden;background:var(--canvas,#0E1218);color:var(--text,#fff);flex:none;border-radius:6px">
+      <div style="position:absolute;inset:0;background-image:var(--bgimg,none);background-size:cover;background-position:center"></div>
+      <sc-if value="{{ hasVideo }}" hint-placeholder-val="{{ false }}"><video data-bgvideo="1" autoPlay="{{ true }}" muted="{{ true }}" loop="{{ true }}" playsInline="{{ true }}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover"></video></sc-if>
+      <div style="position:absolute;inset:0;background:var(--canvas,#0E1218);opacity:{{ dimOpacity }}"></div>
+      <div style="position:absolute;inset:0;background:{{ overlayBg }};opacity:{{ overlayOpacity }}"></div>
+      
+      <div style="position:absolute;top:48px;left:0;right:0;display:flex;justify-content:center">
+        <div style="display:flex;gap:4px;background:var(--surface,rgba(14,18,24,.6));backdrop-filter:blur(30px);border-radius:999px;padding:6px;border:1px solid var(--border,rgba(255,255,255,.18))">
+          <div style="padding:14px 40px;border-radius:999px;font-size:26px;font-weight:600;letter-spacing:-.01em;color:{{ segOff }}">Featured</div>
+          <div style="padding:14px 40px;border-radius:999px;font-size:26px;font-weight:600;letter-spacing:-.01em;background:{{ segOn }};color:{{ segOnFg }}">Inbox</div>
+        </div>
+      </div>
+      <div style="position:absolute;top:50px;left:96px;height:72px;display:flex;align-items:center"><img src="./assets/recco-logo.png" alt="Recco" style="height:64px;width:auto;display:block"></div>
+      <div style="position:absolute;top:56px;right:96px;display:flex;align-items:center">
+        <div data-f="1" style="width:60px;height:60px;border-radius:50%;background:var(--surface2,rgba(14,18,24,.92));border:1px solid var(--border,rgba(255,255,255,.18));outline:3px solid {{ focusColor }};display:flex;align-items:center;justify-content:center" title="Settings"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="var(--accent2,#3CC7F5)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"></path></svg></div>
+      </div>
+      <div style="position:absolute;top:168px;left:96px;right:96px;bottom:72px;display:grid;grid-template-columns:1.1fr 1fr;gap:80px;align-items:center">
+        <div style="display:flex;flex-direction:column;gap:22px">
+          <div style="font-size:84px;font-weight:700;letter-spacing:-.03em;line-height:1;text-wrap:pretty">Nothing to watch yet.</div>
+          <div style="font-size:30px;line-height:1.4;color:var(--textB,#D0D4DA);text-wrap:pretty">Text any show to <span style="color:var(--text,#fff);font-weight:700">(604) 555-0142</span> and it shows up here — with the poster, ratings, and who told you about it.</div>
+          <div style="display:flex;flex-direction:column;gap:14px;margin-top:18px;font-size:24px;color:var(--textB,#D0D4DA)">
+            <div style="display:flex;gap:14px;align-items:center"><span style="width:10px;height:10px;border-radius:50%;background:var(--accent2,#3CC7F5);flex:none"></span>A title is enough. Add who said it and we remember.</div>
+            <div style="display:flex;gap:14px;align-items:center"><span style="width:10px;height:10px;border-radius:50%;background:var(--accent2,#3CC7F5);flex:none"></span>Send a TikTok, YouTube, or Instagram link — we pull out the shows.</div>
+            <div style="display:flex;gap:14px;align-items:center"><span style="width:10px;height:10px;border-radius:50%;background:var(--accent2,#3CC7F5);flex:none"></span>Several shows in one text is fine. So are notes to yourself.</div>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:26px;background:var(--surface,rgba(14,18,24,.6));border:1px solid var(--border,rgba(255,255,255,.18));border-radius:28px;padding:36px 40px">
+          <div style="font-size:21px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--text2,#9AA0A8)">Try one of these</div>
+          <div style="display:flex;flex-direction:column;gap:8px;align-items:flex-start"><div style="display:inline-block;max-width:100%;background:var(--tint,linear-gradient(135deg,rgba(30,140,255,.22),rgba(60,199,245,.1)));border-radius:18px 18px 18px 4px;padding:14px 20px;font-size:26px;line-height:1.3;color:var(--textBubble,#E6F4FF)">Severance</div><div style="font-size:21px;color:var(--text2,#9AA0A8);padding-left:6px">Just the title</div></div>
+          <div style="display:flex;flex-direction:column;gap:8px;align-items:flex-start"><div style="display:inline-block;max-width:100%;background:var(--tint,linear-gradient(135deg,rgba(30,140,255,.22),rgba(60,199,245,.1)));border-radius:18px 18px 18px 4px;padding:14px 20px;font-size:26px;line-height:1.3;color:var(--textBubble,#E6F4FF)">King of Queens — John said it was funny</div><div style="font-size:21px;color:var(--text2,#9AA0A8);padding-left:6px">Title + who recommended it</div></div>
+          <div style="display:flex;flex-direction:column;gap:8px;align-items:flex-start"><div style="display:inline-block;max-width:100%;background:var(--tint,linear-gradient(135deg,rgba(30,140,255,.22),rgba(60,199,245,.1)));border-radius:18px 18px 18px 4px;padding:14px 20px;font-size:26px;line-height:1.3;color:var(--textBubble,#E6F4FF)">tiktok.com/@filmtok/video/72… Steph sent this</div><div style="font-size:21px;color:var(--text2,#9AA0A8);padding-left:6px">A link — we find the shows in the video</div></div>
+          <div style="display:flex;flex-direction:column;gap:8px;align-items:flex-start"><div style="display:inline-block;max-width:100%;background:var(--tint,linear-gradient(135deg,rgba(30,140,255,.22),rgba(60,199,245,.1)));border-radius:18px 18px 18px 4px;padding:14px 20px;font-size:26px;line-height:1.3;color:var(--textBubble,#E6F4FF)">note to self: watch Dune before Part Three</div><div style="font-size:21px;color:var(--text2,#9AA0A8);padding-left:6px">Your own reminder</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  </div>
+</section>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;theme&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;default&quot;:&quot;fallDay&quot;,&quot;options&quot;:[&quot;default&quot;,&quot;fallDay&quot;,&quot;fallNight&quot;,&quot;winterDay&quot;,&quot;winterNight&quot;,&quot;summerDay&quot;,&quot;summerNight&quot;],&quot;tsType&quot;:&quot;'default' | 'fallDay' | 'fallNight' | 'winterDay' | 'winterNight'&quot;,&quot;section&quot;:&quot;Theme&quot;},&quot;overlay&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;default&quot;:&quot;vignette&quot;,&quot;options&quot;:[&quot;none&quot;,&quot;solid&quot;,&quot;radial&quot;,&quot;vignette&quot;,&quot;top&quot;,&quot;bottom&quot;],&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Background overlay&quot;},&quot;dim&quot;:{&quot;editor&quot;:&quot;range&quot;,&quot;default&quot;:40,&quot;min&quot;:0,&quot;max&quot;:100,&quot;step&quot;:5,&quot;unit&quot;:&quot;%&quot;,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Background overlay&quot;},&quot;overlayOpacity&quot;:{&quot;editor&quot;:&quot;range&quot;,&quot;default&quot;:100,&quot;min&quot;:0,&quot;max&quot;:100,&quot;step&quot;:5,&quot;unit&quot;:&quot;%&quot;,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Background overlay&quot;}}">
+class Component extends DCLogic {
+  themes = {
+    default: { label: 'Midnight blue', vars: { surfaceSolid: 'rgba(14,18,24,.72)' }, focus: '#3CC7F5', focusSoft: 'rgba(60,199,245,.75)', focusGlow: 'rgba(30,140,255,.45)', fill: 'rgba(30,140,255,.14)', segOn: '#FFFFFF', segOnFg: '#101114', segOff: 'rgba(255,255,255,.75)' },
+    fallDay: { label: 'Fall · Day', video: './assets/fall-day.mp4', focus: '#F0B667', focusSoft: 'rgba(240,182,103,.8)', focusGlow: 'rgba(211,99,45,.45)', fill: 'rgba(211,99,45,.18)', segOn: '#F0B667', segOnFg: '#2A1A10', segOff: 'rgba(255,247,232,.8)', vars: { bgimg: 'url(./assets/fall-day.png)', scrim: 'transparent', glow: '0', canvas: '#555740', surface: 'rgba(41,54,45,.8)', surfaceSolid: 'rgba(41,54,45,.72)', surface2: 'rgba(41,54,45,.96)', border: 'rgba(255,247,232,.22)', accent: '#D3632D', accent2: '#F0B667', accentShadow: 'rgba(211,99,45,.4)', onAccent: '#2A1A10', text: '#FFF7E8', textB: '#FFF7E8', text2: '#D5CFB9', textBubble: '#FFF7E8', tint: 'linear-gradient(135deg,rgba(211,99,45,.42),rgba(240,182,103,.22))', chipBg: 'rgba(211,99,45,.25)', chipBorder: 'rgba(240,182,103,.45)' } },
+    summerDay: { label: 'Summer · Day', video: './assets/summer-day.mp4', focus: '#F2D34F', focusSoft: 'rgba(242,211,79,.85)', focusGlow: 'rgba(215,104,61,.45)', fill: 'rgba(215,104,61,.2)', segOn: '#D7683D', segOnFg: '#FFFDF7', segOff: 'rgba(255,253,247,.85)', vars: { bgimg: 'url(./assets/summer-day.png)', scrim: 'transparent', glow: '0', canvas: '#5EA7B6', surface: 'rgba(25,76,86,.8)', surfaceSolid: 'rgba(25,76,86,.72)', surface2: 'rgba(25,76,86,.96)', border: 'rgba(255,253,247,.25)', accent: '#D7683D', accent2: '#F2D34F', accentShadow: 'rgba(215,104,61,.4)', onAccent: '#194C56', text: '#FFFDF7', textB: '#FFFDF7', text2: '#D5ECEA', textBubble: '#FFFDF7', tint: 'linear-gradient(135deg,rgba(215,104,61,.5),rgba(231,211,174,.25))', chipBg: 'rgba(215,104,61,.3)', chipBorder: 'rgba(242,211,79,.5)' } },
+    summerNight: { label: 'Summer · Night', video: './assets/summer-night.mp4', focus: '#F0A64B', focusSoft: 'rgba(240,166,75,.85)', focusGlow: 'rgba(240,166,75,.45)', fill: 'rgba(131,188,212,.2)', segOn: '#83BCD4', segOnFg: '#0B2938', segOff: 'rgba(248,252,252,.85)', vars: { bgimg: 'url(./assets/summer-night.png)', scrim: 'transparent', glow: '0', canvas: '#174D68', surface: 'rgba(11,41,56,.8)', surfaceSolid: 'rgba(11,41,56,.72)', surface2: 'rgba(11,41,56,.96)', border: 'rgba(131,188,212,.28)', accent: '#83BCD4', accent2: '#F0A64B', accentShadow: 'rgba(240,166,75,.4)', onAccent: '#0B2938', text: '#F8FCFC', textB: '#F8FCFC', text2: '#BDD9DF', textBubble: '#F8FCFC', tint: 'linear-gradient(135deg,rgba(131,188,212,.4),rgba(31,91,114,.35))', chipBg: 'rgba(131,188,212,.25)', chipBorder: 'rgba(131,188,212,.5)' } },
+    winterDay: { label: 'Winter · Day', video: './assets/winter-day.mp4', focus: '#8CC8D8', focusSoft: 'rgba(140,200,216,.8)', focusGlow: 'rgba(175,200,216,.5)', fill: 'rgba(175,200,216,.2)', segOn: '#8CC8D8', segOnFg: '#263642', segOff: 'rgba(255,253,248,.85)', vars: { bgimg: 'none', scrim: 'transparent', glow: '0', canvas: '#71889B', surface: 'rgba(38,54,66,.8)', surfaceSolid: 'rgba(38,54,66,.72)', surface2: 'rgba(38,54,66,.96)', border: 'rgba(244,246,243,.25)', accent: '#516B7B', accent2: '#8CC8D8', accentShadow: 'rgba(81,107,123,.4)', onAccent: '#263642', text: '#FFFDF8', textB: '#FFFDF8', text2: '#D9E1E4', textBubble: '#FFFDF8', tint: 'linear-gradient(135deg,rgba(94,117,108,.55),rgba(175,200,216,.3))', chipBg: 'rgba(81,107,123,.35)', chipBorder: 'rgba(175,200,216,.5)' } },
+    winterNight: { label: 'Winter · Night', video: './assets/winter-night.mp4', focus: '#8FBDE8', focusSoft: 'rgba(143,189,232,.8)', focusGlow: 'rgba(120,158,204,.5)', fill: 'rgba(120,158,204,.2)', segOn: '#8FBDE8', segOnFg: '#10233A', segOff: 'rgba(248,251,253,.8)', vars: { bgimg: 'none', scrim: 'transparent', glow: '0', canvas: '#152A43', surface: 'rgba(13,28,43,.8)', surfaceSolid: 'rgba(13,28,43,.72)', surface2: 'rgba(13,28,43,.96)', border: 'rgba(175,201,232,.25)', accent: '#789ECC', accent2: '#8FBDE8', accentShadow: 'rgba(120,158,204,.4)', onAccent: '#10233A', text: '#F8FBFD', textB: '#F8FBFD', text2: '#BBCAD6', textBubble: '#F8FBFD', tint: 'linear-gradient(135deg,rgba(120,158,204,.4),rgba(175,201,232,.2))', chipBg: 'rgba(120,158,204,.25)', chipBorder: 'rgba(175,201,232,.45)' } },
+    fallNight: { label: 'Fall · Night', video: './assets/fall-night.mp4', focus: '#E28A3B', focusSoft: 'rgba(226,138,59,.8)', focusGlow: 'rgba(200,87,47,.5)', fill: 'rgba(200,87,47,.18)', segOn: '#E28A3B', segOnFg: '#1D1410', segOff: 'rgba(255,246,232,.8)', vars: { bgimg: 'url(./assets/fall-night.png)', scrim: 'transparent', glow: '0', canvas: '#1D2929', surface: 'rgba(18,28,30,.8)', surfaceSolid: 'rgba(18,28,30,.72)', surface2: 'rgba(18,28,30,.96)', border: 'rgba(255,246,232,.2)', accent: '#C8572F', accent2: '#E28A3B', accentShadow: 'rgba(200,87,47,.4)', onAccent: '#1D1410', text: '#FFF6E8', textB: '#FFF6E8', text2: '#C4CAC0', textBubble: '#FFF6E8', tint: 'linear-gradient(135deg,rgba(200,87,47,.42),rgba(226,138,59,.22))', chipBg: 'rgba(200,87,47,.25)', chipBorder: 'rgba(226,138,59,.45)' } },
+  };
+  get themeKey() { const k = this.props.theme ?? 'fallDay'; return this.themes[k] ? k : 'default'; }
+  get theme() { return this.themes[this.themeKey]; }
+  applyTheme() {
+    const all = Object.keys(this.themes.fallDay.vars);
+    document.querySelectorAll('[data-board]').forEach(b => { for (const k of all) b.style.setProperty('--' + k, this.theme.vars[k] ?? ''); const v = b.querySelector('video[data-bgvideo]'); if (v && this.theme.video && !v.src.endsWith(this.theme.video.replace('./', '/'))) v.src = this.theme.video; if (v && v.paused) v.play().catch(() => {}); });
+  }
+  componentDidMount() { this.applyTheme(); setTimeout(() => this.applyTheme(), 400); }
+  componentDidUpdate() { this.applyTheme(); }
+  renderVals() {
+    const th = this.theme;
+    return {
+      hasVideo: !!th.video, bgVideo: th.video || '',
+      overlayBg: ({ none: 'transparent', solid: 'var(--canvas)', radial: 'radial-gradient(ellipse 70% 70% at 50% 50%, transparent 0%, var(--canvas) 100%)', vignette: 'radial-gradient(ellipse 85% 85% at 50% 40%, transparent 15%, var(--canvas) 100%)', top: 'linear-gradient(180deg, var(--canvas) 0%, transparent 60%)', bottom: 'linear-gradient(0deg, var(--canvas) 0%, transparent 70%)' })[this.props.overlay ?? 'vignette'] || 'transparent',
+      overlayOpacity: (this.props.overlayOpacity ?? 100) / 100, dimOpacity: (this.props.dim ?? 40) / 100,
+      segOn: th.segOn, segOnFg: th.segOnFg, segOff: th.segOff, focusColor: th.focus,
+    };
+  }
+}
+</script>
+</body>
+</html>

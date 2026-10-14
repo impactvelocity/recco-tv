@@ -14,7 +14,7 @@ export function findTitlesTool(ctx: RunContext) {
     execute: async (query) => {
       const found = await ctx.deps.sources.titles.search(query);
       for (const c of found) ctx.lookedUp.set(c.imdbId, c);
-      if (found.length === 0) return { candidates: [], note: "No match. Do not invent one." };
+      if (found.length === 0) return { candidates: [], note: "No match. Try the official title or another spelling. Do not invent one." };
       return {
         candidates: found.map((c) => ({ imdbId: c.imdbId, title: c.title, year: c.year ?? null, type: c.type, plot: c.plot ?? null })),
       };

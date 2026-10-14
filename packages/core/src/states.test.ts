@@ -18,6 +18,12 @@ describe("card states", () => {
     });
   });
 
+  it("can leave its post's stack", () => {
+    const loose = applyCardUpdate(card({ groupId: "g", groupTitle: "Movie night" }), { ungroup: true });
+    expect(loose).not.toHaveProperty("groupId");
+    expect(loose).not.toHaveProperty("groupTitle");
+  });
+
   it("does not mutate the original", () => {
     const c = card();
     applyCardUpdate(c, { rating: "up" });
@@ -27,15 +33,15 @@ describe("card states", () => {
 
 describe("check these", () => {
   const candidates = [
-    { titleId: "tt0386676", title: "The Office", year: "2005–2013", type: "series" as const, services: ["Prime Video"] },
-    { titleId: "tt0290978", title: "The Office", year: "2001–2003", type: "series" as const },
+    { titleId: "tt0386676", title: "The Office", year: "2005–2013", type: "series" as const },
+    { titleId: "tt0290978", title: "The Office", year: "2001–2003", type: "series" as const, imdbRating: "8.5", runtime: "30 min" },
   ];
 
   it("picking a candidate makes it a normal card", () => {
     const c = card({ needsCheck: true, candidates, titleId: undefined });
     expect(needsAttention(c)).toBe(true);
     const picked = applyCardUpdate(c, { candidateTitleId: "tt0290978" });
-    expect(picked).toMatchObject({ titleId: "tt0290978", year: "2001–2003", needsCheck: false, candidates: [] });
+    expect(picked).toMatchObject({ titleId: "tt0290978", year: "2001–2003", needsCheck: false, candidates: [], imdbRating: "8.5", runtime: "30 min" });
     expect(needsAttention(picked)).toBe(false);
   });
 

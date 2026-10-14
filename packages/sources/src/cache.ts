@@ -1,4 +1,4 @@
-/** Title data and availability are cached for seven days (R5.2). */
+/** Title data is cached for seven days (R5.2). */
 export const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
 
 export interface Cache {

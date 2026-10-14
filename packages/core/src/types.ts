@@ -2,15 +2,15 @@ export type CardState = "new" | "starred" | "hidden" | "watched";
 export type Rating = "up" | "down";
 export type TitleType = "movie" | "series" | "episode" | "unknown";
 
-/** Who a card is filed under. */
-export type Origin = "friend" | "me" | "internet";
+/** Who a card is filed under. "recco": the agent's own ideas, when she asked for some ("movies for a stormy night"). */
+export type Origin = "friend" | "me" | "internet" | "recco";
 
 /** "title" maps to a looked-up title. "unsorted" is her words and link, kept when nothing matched. */
 export type CardKind = "title" | "unsorted";
 
 export interface Household {
   id: string;
-  /** Lower-case ISO 3166 code used for availability lookups, e.g. "ca". */
+  /** Lower-case ISO 3166 code, e.g. "ca". */
   country: string;
   phoneLast4: string;
   /** Unguessable id of the household's live-update channel. */
@@ -31,17 +31,28 @@ export interface FriendWithRecord extends Friend {
   rated: number;
 }
 
-export interface Candidate {
+/** Details from the title lookup. Optional: older cards and some titles have none. */
+export interface TitleFacts {
+  /** IMDb score as OMDb gives it, e.g. "8.7". */
+  imdbRating?: string;
+  /** Rotten Tomatoes score, e.g. "97%". */
+  rtRating?: string;
+  /** e.g. "50 min". */
+  runtime?: string;
+  /** The first genre only, e.g. "Thriller". */
+  genre?: string;
+}
+
+export interface Candidate extends TitleFacts {
   titleId: string;
   title: string;
   year?: string;
   type: TitleType;
   plot?: string;
   posterUrl?: string;
-  services?: string[];
 }
 
-export interface Card {
+export interface Card extends TitleFacts {
   id: string;
   householdId: string;
   createdAt: string;
@@ -53,7 +64,6 @@ export interface Card {
   type: TitleType;
   plot?: string;
   posterUrl?: string;
-  services: string[];
   origin: Origin;
   friendId?: string;
   /** Her words, unedited. */
@@ -66,13 +76,16 @@ export interface Card {
   candidates: Candidate[];
   /** Shared by every card that came from one post. */
   groupId?: string;
+  /** The stack's short name, written by the agent ("Thanksgiving Movie Night"). Same on every card in the group. */
+  groupTitle?: string;
   messageId: string;
 }
 
 /** A card as the API sends it to a TV. */
 export type CardFields = Omit<Card, "householdId" | "messageId">;
 
-export type MessageStatus = "pending" | "done" | "failed";
+/** "merged": read together with an older text sent just before it (see burst.ts). */
+export type MessageStatus = "pending" | "done" | "failed" | "merged";
 
 export interface RawMessage {
   id: string;
@@ -83,6 +96,8 @@ export interface RawMessage {
   provider: string;
   providerMessageId: string;
   error?: string;
+  /** For a merged text: the message whose run read it. */
+  mergedInto?: string;
 }
 
 export interface Device {
