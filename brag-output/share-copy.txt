@@ -1,0 +1,1 @@
+Recco is an inbox of things to watch, on Fire TV. Text it a show, a TikTok, or "top films for a stormy night", and when it's finally your time the list is on the TV with who recommended each one and what they said. Built for the Build, Ship, Shape hackathon with React Native for Vega, AgentCore, SQS, DynamoDB and AppSync Events.

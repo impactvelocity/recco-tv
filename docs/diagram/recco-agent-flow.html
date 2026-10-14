@@ -1,0 +1,442 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Inside the Recco Agent</title>
+<!--
+  Source for docs/diagram/recco-agent-flow.png (1200 wide, rendered at 2x). Same look as how-recco-works.html.
+  Facts come from services/ (api, intake, agent-worker, recco-agent), infra/lib/recco-stack.ts and docs/decisions.md.
+  Re-render from this folder:
+  "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --headless=new --hide-scrollbars --allow-file-access-from-files \
+    --window-size=1200,4270 --force-device-scale-factor=2 --virtual-time-budget=4000 \
+    --screenshot="$PWD/recco-agent-flow.png" "file://$PWD/recco-agent-flow.html"
+-->
+<style>
+  @font-face { font-family: "Inter"; src: url(fonts/Inter.woff2) format("woff2"); font-weight: 100 900; }
+
+  :root {
+    --page: #FFFFFF;
+    --ink: #141C1A;
+    --ink2: #3B4441;
+    --muted: #5F6764;
+    --line: #E7E2D9;
+    --wash: #F6F3EE;
+    --orange: #C8572F;
+    --orange-ink: #A8461F;
+    --peach: #FBEADD;
+    --wire: #E3A27A;
+    --sms: #1E8E3E;
+    --mono: "SF Mono", ui-monospace, Menlo, monospace;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 1200px; background: var(--page); }
+  body { font-family: "Inter", -apple-system, "Helvetica Neue", sans-serif; color: var(--ink); -webkit-font-smoothing: antialiased; }
+  #canvas { width: 1200px; padding: 64px 64px 52px; }
+  code { font-family: var(--mono); font-size: .9em; color: var(--orange-ink); }
+
+  /* Header */
+  header { position: relative; }
+  .wordmark { position: absolute; top: 12px; right: 0; width: 132px; height: 44px; background: var(--ink);
+              -webkit-mask: url(../../apps/tv/assets/recco-logo.png) right center / contain no-repeat; }
+  h1 { font-size: 72px; font-weight: 800; letter-spacing: -.035em; line-height: 1; }
+  h1 em { font-style: normal; color: var(--orange); }
+  .legend { display: flex; gap: 10px; margin-top: 20px; }
+  .legend .chip { font-size: 14px; padding: 5px 11px; }
+  .lede { margin-top: 18px; font-size: 27px; line-height: 1.4; color: var(--ink2); max-width: 960px; text-wrap: balance; }
+
+  /* Stages on a rail */
+  .stages { margin-top: 56px; }
+  .stage { position: relative; padding-left: 76px; padding-bottom: 60px; }
+  .stage::before { content: ""; position: absolute; left: 21px; top: 56px; bottom: 10px; width: 2px; background: #F0D8C6; border-radius: 2px; }
+  .stage:last-child { padding-bottom: 0; }
+  .stage:last-child::before { display: none; }
+  .n { position: absolute; left: 0; top: 0; width: 44px; height: 44px; border-radius: 50%; background: var(--orange); color: #fff;
+       font-size: 22px; font-weight: 800; display: grid; place-items: center; }
+  .stitle { font-size: 34px; font-weight: 750; letter-spacing: -.022em; line-height: 1.15; padding-top: 1px; }
+  .ssub { margin-top: 8px; font-size: 20.5px; line-height: 1.45; color: var(--ink2); max-width: 960px; }
+  .uses { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 14px; }
+  .uses small { font-size: 13px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin-right: 4px; }
+  .chip { font-size: 15.5px; font-weight: 600; padding: 6px 12px; border-radius: 999px; background: #fff; border: 1px solid var(--line); white-space: nowrap; }
+  .chip.aws { background: var(--peach); border-color: #F1D5BF; color: #7A3517; }
+  .panel { position: relative; margin-top: 22px; border-radius: 26px; background: var(--wash); border: 1px solid var(--line); padding: 26px; }
+  .panel.hero { background: linear-gradient(165deg, #FCEEE2 0%, #FFF8F2 55%, #FFFFFF 100%); border-color: #F1D5BF; padding: 28px; }
+
+  /* Icons */
+  .ic { width: 40px; height: 40px; border-radius: 12px; background: var(--peach); display: grid; place-items: center; flex: none; }
+  .ic svg { width: 21px; height: 21px; stroke: var(--orange); fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+  /* Lanes of service tiles */
+  .lane { display: flex; align-items: stretch; }
+  .node { width: 166px; flex: none; border-radius: 18px; background: #fff; border: 1px solid var(--line); padding: 14px 14px 15px;
+          box-shadow: 0 10px 24px rgba(20, 28, 26, .06); }
+  .node b { display: block; margin-top: 11px; font-size: 17px; font-weight: 750; letter-spacing: -.01em; line-height: 1.2; }
+  .node span { display: block; margin-top: 4px; font-size: 14.5px; line-height: 1.35; color: var(--ink2); }
+  .node.wide { width: auto; flex: 1; }
+  .wire { flex: 1; min-width: 26px; position: relative; align-self: center; height: 2px; background: var(--wire); }
+  .wire::after { content: ""; position: absolute; right: -3px; top: -3px; width: 8px; height: 8px; border-radius: 50%; background: var(--wire); }
+  .wire em { position: absolute; left: 50%; bottom: 9px; transform: translateX(-50%); font-style: normal; white-space: nowrap;
+             font-size: 13.5px; font-weight: 650; color: var(--orange-ink); background: var(--wash); padding: 2px 8px; border-radius: 999px; }
+  .note { display: flex; align-items: flex-start; gap: 10px; margin-top: 18px; font-size: 16.5px; line-height: 1.45; color: var(--ink2); }
+  .note svg { width: 20px; height: 20px; flex: none; margin-top: 2px; stroke: var(--orange); fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+  /* Two-column panels with a TV */
+  .split { display: flex; gap: 28px; align-items: center; }
+  .split > .left { flex: 1; min-width: 0; }
+  .tvcol { width: 440px; flex: none; }
+  .tvbox { position: relative; height: 262px; }
+  .tvcap { margin-top: 26px; display: flex; align-items: center; justify-content: center; gap: 10px; font-size: 16px; font-weight: 600; color: var(--ink); }
+  .tvcap i { font-style: normal; font-size: 14px; font-weight: 700; color: #fff; background: var(--orange); padding: 3px 10px; border-radius: 999px; }
+
+  .checks { display: flex; flex-direction: column; gap: 10px; }
+  .chk { display: flex; align-items: center; gap: 14px; padding: 12px 14px; border-radius: 16px; background: #fff; border: 1px solid var(--line); }
+  .chk .ic { width: 36px; height: 36px; border-radius: 10px; }
+  .chk .ic svg { width: 19px; height: 19px; }
+  .chk small { display: block; font-size: 14px; color: var(--muted); }
+  .chk b { display: block; font-size: 17px; font-weight: 650; line-height: 1.3; margin-top: 1px; }
+  .chk.go { border-color: #F1D5BF; background: #FFF8F2; }
+  .chk.go .ic { background: var(--orange); } .chk.go .ic svg { stroke: #fff; }
+
+  /* Stage 4: the agent */
+  .rowA { display: flex; align-items: center; }
+  .textin { width: 300px; flex: none; }
+  .label { font-size: 13px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+  .sms { margin-top: 10px; background: var(--sms); color: #fff; font-size: 19px; line-height: 1.35; padding: 13px 17px; border-radius: 22px 22px 6px 22px;
+         box-shadow: 0 10px 24px rgba(30, 142, 62, .18); }
+  .sms u { color: #DFF5E4; text-underline-offset: 3px; }
+  .rowA .wire em { background: #FDF3EA; }
+  .agent { width: 450px; flex: none; border-radius: 22px; padding: 20px 22px 18px; color: #fff;
+           background: linear-gradient(150deg, #E5874A, #C8572F 58%, #A9441F); box-shadow: 0 22px 50px rgba(168, 70, 31, .28); }
+  .agent .top { display: flex; align-items: center; gap: 12px; }
+  .agent .top .ic { width: 44px; height: 44px; background: rgba(255,255,255,.18); }
+  .agent .top .ic svg { stroke: #fff; width: 24px; height: 24px; }
+  .agent .top b { font-size: 25px; font-weight: 800; letter-spacing: -.02em; }
+  .agent dl { margin-top: 14px; display: grid; grid-template-columns: 88px 1fr; row-gap: 7px; font-size: 15.5px; line-height: 1.35; }
+  .agent dt { color: rgba(255,255,255,.72); font-weight: 600; }
+  .agent dd { font-weight: 600; }
+  .tools { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 26px; }
+  .tool { border-radius: 20px; background: #fff; border: 1px solid #F1DDCC; padding: 18px 20px 18px; display: flex; flex-direction: column; }
+  .tool .th { display: flex; align-items: center; gap: 12px; }
+  .tool .th code { font-size: 19px; font-weight: 700; }
+  .tool p { margin-top: 10px; font-size: 16.5px; line-height: 1.45; color: var(--ink2); }
+  .tool .uses { margin-top: auto; padding-top: 14px; }
+  .tool .chip { font-size: 14px; padding: 5px 10px; }
+  .tool.code { background: #FFF8F2; }
+  .trace { margin-top: 22px; border-radius: 20px; background: #fff; border: 1px solid #F1DDCC; padding: 18px 20px 8px; }
+  .trace ol { list-style: none; margin-top: 10px; }
+  .trace li { display: grid; grid-template-columns: 32px 330px 1fr; align-items: center; gap: 12px; padding: 11px 0; border-top: 1px solid #F3ECE4; }
+  .trace li:first-child { border-top: none; }
+  .trace .k { width: 26px; height: 26px; border-radius: 50%; background: var(--peach); color: var(--orange-ink); font-size: 13.5px; font-weight: 800; display: grid; place-items: center; }
+  .trace code { font-size: 15px; color: var(--ink); }
+  .trace code b { color: var(--orange-ink); font-weight: 700; }
+  .trace span { font-size: 15.5px; color: var(--ink2); line-height: 1.35; }
+
+  /* Footer */
+  .built { margin-top: 64px; border-radius: 24px; border: 1px solid var(--line); padding: 22px 26px 24px; }
+  .built .label { color: var(--orange-ink); }
+  .built .uses { margin-top: 14px; }
+  .built p { margin-top: 14px; font-size: 16px; color: var(--ink2); }
+  footer { margin-top: 26px; display: flex; justify-content: space-between; font-size: 16px; color: var(--muted); }
+  footer b { color: var(--ink2); font-weight: 650; }
+
+  /* TV device on a light page */
+  .tvwrap { position: absolute; padding: 7px; border-radius: 14px; background: #0B0D0E;
+            box-shadow: 0 28px 60px rgba(20, 28, 26, .22), 0 6px 14px rgba(20, 28, 26, .12), inset 0 0 0 1.5px #2a2f2f; }
+  .tvglass { position: relative; overflow: hidden; border-radius: 6px; background: #000; }
+  .tvscale { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; transform-origin: 0 0; }
+  .tvfoot { position: absolute; left: 50%; bottom: -13px; width: 130px; height: 8px; margin-left: -65px; border-radius: 0 0 7px 7px; background: #1a1e1f; }
+
+  /* ---------- TV screen (Recco TV v3; same CSS as app-stages.html) ---------- */
+  .screen { position: absolute; inset: 0; width: 1920px; height: 1080px; color: var(--text); font-family: "Inter", sans-serif; overflow: hidden; }
+  .screen .still, .screen .vign { position: absolute; inset: 0; background-size: cover; background-position: center; }
+  .screen .vign { background-size: 100% 100%; }
+  .hdr { position: absolute; inset: 0 0 auto 0; height: 140px; }
+  .tabs { position: absolute; top: 48px; left: 50%; margin-left: -177px; display: flex; gap: 4px; background: var(--surface); border-radius: 999px; padding: 6px; border: 1px solid var(--border); }
+  .seg { padding: 14px 40px; border-radius: 999px; font-size: 26px; font-weight: 600; letter-spacing: -.01em; color: var(--segOff); }
+  .seg.on { background: var(--segOn); color: var(--segOnFg); }
+  .tvlogo { position: absolute; top: 54px; left: 96px; height: 64px; width: auto; }
+  .gear { position: absolute; top: 56px; right: 96px; width: 60px; height: 60px; border-radius: 50%; background: var(--surface); border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; }
+  .grid { position: absolute; top: 140px; left: 48px; right: 48px; bottom: 0; padding: 28px 48px 56px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 28px; align-content: start; }
+  .card { display: flex; gap: 20px; border-radius: 20px; background: var(--surface); border: 1px solid var(--border); padding: 18px; height: 414px; position: relative; }
+  .card.focus { background: var(--surfaceSolid); outline: 4px solid var(--focus); transform: scale(1.04); box-shadow: 0 40px 90px rgba(0,0,0,.6); z-index: 5; }
+  .ccol { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+  .ctitle { font-size: 30px; font-weight: 700; line-height: 1.1; letter-spacing: -.01em; }
+  .cmeta { font-size: 19px; color: var(--text2); display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .stackchip { display: inline-flex; align-items: center; gap: 6px; color: var(--textB); background: rgba(255,255,255,.2); border: 1px solid rgba(255,255,255,.08); font-weight: 600; font-size: 16px; padding: 3px 10px; border-radius: 999px; line-height: 1.3; }
+  .ratings { display: flex; align-items: center; gap: 18px; color: var(--textB); font-weight: 600; }
+  .r1 { display: flex; align-items: center; gap: 7px; }
+  .imdb { display: inline-block; flex: none; background: #F2C230; border-radius: 4px; }
+  .rt { display: inline-block; flex: none; border-radius: 50%; background: #D9483B; }
+  .cbot { flex: 1; min-height: 0; display: flex; flex-direction: column; justify-content: flex-end; gap: 10px; margin-top: 4px; }
+  .bwrap { flex: 1; min-height: 0; display: flex; align-items: flex-end; }
+  .bubble { display: inline-block; max-width: 100%; max-height: 100%; overflow: hidden; background: var(--tint); border-radius: 18px 18px 18px 4px; padding: 14px 18px; font-size: 24px; line-height: 1.3; color: var(--textBubble); }
+  .sender { display: flex; align-items: center; gap: 8px; font-size: 19px; color: var(--text2); padding-left: 4px; }
+  .sname { font-weight: 600; color: var(--textB); white-space: nowrap; }
+  .av { border-radius: 50%; flex: none; display: flex; align-items: center; justify-content: center; font-weight: 600; color: var(--textB); background: rgba(255,255,255,.2); border: 1px solid rgba(255,255,255,.08); }
+  .poster { width: 252px; height: 378px; border-radius: 14px; flex: none; background-size: cover; background-position: center; box-shadow: 0 16px 40px rgba(0,0,0,.45); }
+  .fan { width: 252px; height: 378px; position: relative; flex: none; isolation: isolate; }
+  .fp { position: absolute; width: 200px; height: 300px; border-radius: 14px; background-size: cover; background-position: center; box-shadow: 0 16px 40px rgba(0,0,0,.5); border: 1px solid rgba(255,255,255,.12); }
+  .fc { left: 44px; top: 48px; z-index: 1; rotate: 10deg; }
+  .fb { left: 8px; top: 40px; z-index: 2; rotate: -7deg; }
+  .fa { left: 26px; top: 30px; z-index: 3; }
+  /* placeholder tile (InboxTile.tsx PlaceholderTile) */
+  .card.pending { border: 2px dashed var(--border); }
+  .pbar { background: rgba(255,255,255,.12); border-radius: 8px; }
+  .pslot { width: 252px; height: 378px; border-radius: 14px; flex: none; overflow: hidden; position: relative; background: rgba(255,255,255,.12); }
+  .psweep { position: absolute; top: 0; bottom: 0; left: 70px; width: 140px; background: linear-gradient(90deg, rgba(255,255,255,0), rgba(255,255,255,.16), rgba(255,255,255,0)); }
+  .dots { display: flex; gap: 8px; padding: 8px 0; }
+  .dot { width: 12px; height: 12px; border-radius: 6px; background: var(--textBubble); opacity: .4; }
+  .pstatus { font-size: 19px; color: var(--text2); margin-top: 12px; }
+</style>
+</head>
+<body>
+<div id="canvas">
+  <header>
+    <div class="wordmark" role="img" aria-label="Recco"></div>
+    <h1>Inside the <em>Recco Agent</em></h1>
+    <p class="lede">Every step between the text you send and the card on your TV, and the services that run each one.</p>
+    <div class="legend"><span class="chip aws">AWS service</span><span class="chip">Other service or library</span></div>
+  </header>
+
+  <div class="stages">
+
+    <section class="stage">
+      <div class="n">1</div>
+      <div class="stitle">The text arrives</div>
+      <div class="ssub">You text the Recco number. The SMS provider calls a signed webhook on the API, which publishes the text to SNS. SQS holds it for intake.</div>
+      <div class="uses"><small>Uses</small><span class="chip">Zernio SMS</span><span class="chip aws">AWS Lambda</span><span class="chip aws">Lambda function URL</span><span class="chip aws">Amazon SNS</span><span class="chip aws">Amazon SQS</span></div>
+      <div class="panel">
+        <div class="lane" id="lane1"></div>
+        <div class="note" id="note1"></div>
+      </div>
+    </section>
+
+    <section class="stage">
+      <div class="n">2</div>
+      <div class="stitle">Intake sorts it out</div>
+      <div class="ssub">An intake Lambda reads each text from the queue. Most texts are saved for the agent, and the TV shows a placeholder before the agent starts.</div>
+      <div class="uses"><small>Uses</small><span class="chip aws">AWS Lambda</span><span class="chip aws">Amazon DynamoDB</span><span class="chip aws">AWS AppSync Events</span></div>
+      <div class="panel">
+        <div class="split">
+          <div class="left"><div class="checks" id="checks2"></div></div>
+          <div class="tvcol"><div class="tvbox" id="tv2"></div><div class="tvcap"><i>card.pending</i>Placeholder on the TV in under a second</div></div>
+        </div>
+        <div class="note" id="note2"></div>
+      </div>
+    </section>
+
+    <section class="stage">
+      <div class="n">3</div>
+      <div class="stitle">A worker starts the agent</div>
+      <div class="ssub">Intake hands the text to a worker Lambda without waiting for it. The worker calls the agent on Bedrock AgentCore Runtime, with one session per text.</div>
+      <div class="uses"><small>Uses</small><span class="chip aws">AWS Lambda</span><span class="chip aws">Amazon Bedrock AgentCore Runtime</span></div>
+      <div class="panel">
+        <div class="lane" id="lane3"></div>
+        <div class="note" id="note3"></div>
+      </div>
+    </section>
+
+    <section class="stage">
+      <div class="n">4</div>
+      <div class="stitle">The Recco Agent reads it</div>
+      <div class="ssub">The agent waits 5 seconds for follow-up texts, because a link and its comment often arrive as two. Then the model works through four tools and calls <code>save_cards</code> once.</div>
+      <div class="uses"><small>Uses</small><span class="chip aws">Bedrock AgentCore Runtime</span><span class="chip">Vercel AI SDK</span><span class="chip">Vercel AI Gateway</span><span class="chip">Claude Haiku 5.5</span><span class="chip">OMDb API</span><span class="chip">ScrapeCreators</span><span class="chip">Jina Reader</span><span class="chip aws">AWS Secrets Manager</span></div>
+      <div class="panel hero" id="v4"></div>
+    </section>
+
+    <section class="stage">
+      <div class="n">5</div>
+      <div class="stitle"><code style="font-size:.86em">save_cards</code> checks the work and saves it</div>
+      <div class="ssub">The checks that matter run in plain code, not in the prompt. Cards that pass are saved, and the TV swaps the placeholder for the finished card.</div>
+      <div class="uses"><small>Uses</small><span class="chip">TypeScript</span><span class="chip aws">Amazon DynamoDB</span><span class="chip aws">AWS AppSync Events</span></div>
+      <div class="panel">
+        <div class="split">
+          <div class="left"><div class="checks" id="checks5"></div></div>
+          <div class="tvcol"><div class="tvbox" id="tv5"></div><div class="tvcap"><i>card.ready</i>The finished card replaces the placeholder</div></div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <div class="built">
+    <div class="label">Built on AWS</div>
+    <div class="uses">
+      <span class="chip aws">Amazon Bedrock AgentCore Runtime</span><span class="chip aws">AWS Lambda</span><span class="chip aws">Amazon SNS</span><span class="chip aws">Amazon SQS</span>
+      <span class="chip aws">Amazon DynamoDB</span><span class="chip aws">AWS AppSync Events</span><span class="chip aws">AWS Secrets Manager</span><span class="chip aws">Amazon S3</span>
+      <span class="chip aws">AWS IAM</span><span class="chip aws">Amazon CloudWatch Logs</span><span class="chip aws">AWS CDK</span>
+    </div>
+    <p>The whole stack is defined in AWS CDK and runs in one region, us-east-2.</p>
+  </div>
+
+  <footer>
+    <span><b>Recco</b> · a Fire TV app built with React Native for Vega and Amazon Bedrock AgentCore</span>
+    <span>Amazon Developer Hackathon · Fire TV track</span>
+  </footer>
+</div>
+
+<script>
+// ------------------------------------------------------------ icons
+const svg = (d) => `<svg viewBox="0 0 24 24">${d}</svg>`;
+const ic = {
+  phone: svg('<rect x="7" y="2.5" width="10" height="19" rx="2.5"/><path d="M11 18h2"/>'),
+  msg: svg('<path d="M4 5h16v11H9l-5 4z"/>'),
+  lambda: svg('<path d="M6 4h3.2l8.8 16M12.6 10.6 7 20"/>'),
+  topic: svg('<circle cx="12" cy="12" r="2"/><path d="M16.2 7.8a6 6 0 0 1 0 8.5M7.8 16.2a6 6 0 0 1 0-8.5M19 5a10 10 0 0 1 0 14M5 19A10 10 0 0 1 5 5"/>'),
+  queue: svg('<rect x="3" y="4" width="18" height="4.5" rx="1.5"/><rect x="3" y="10" width="18" height="4.5" rx="1.5"/><rect x="3" y="16" width="18" height="4.5" rx="1.5"/>'),
+  db: svg('<ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5"/><path d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/>'),
+  bolt: svg('<path d="M13 2 4 14h7l-1 8 9-12h-7z"/>'),
+  spark: svg('<path d="M12 3l1.9 5.8L20 11l-6.1 2.2L12 19l-1.9-5.8L4 11l6.1-2.2z"/><path d="M19 3v4M17 5h4"/>'),
+  chip: svg('<rect x="6" y="6" width="12" height="12" rx="2"/><path d="M9 2v4M15 2v4M9 18v4M15 18v4M2 9h4M2 15h4M18 9h4M18 15h4"/>'),
+  repeat: svg('<path d="M4 12a8 8 0 0 1 14-5.3M20 12a8 8 0 0 1-14 5.3"/><path d="M18 3v4h-4M6 21v-4h4"/>'),
+  tv: svg('<rect x="3" y="5" width="18" height="12" rx="2"/><path d="M8 21h8M12 17v4"/>'),
+  stop: svg('<circle cx="12" cy="12" r="9"/><path d="m6 6 12 12"/>'),
+  play: svg('<path d="m7 4 13 8-13 8z"/>'),
+  lock: svg('<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>'),
+  info: svg('<circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.5"/>'),
+  alert: svg('<path d="M12 3 2 20h20z"/><path d="M12 10v4M12 17v.5"/>'),
+  page: svg('<path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5M9 13h7M9 17h5"/>'),
+  search: svg('<circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/>'),
+  users: svg('<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7M18 14a6 6 0 0 1 3.5 6"/>'),
+  save: svg('<path d="M5 3h11l3 3v15H5z"/><path d="M8 3v6h8V3M8 21v-7h8v7"/>'),
+  check: svg('<path d="m5 12 5 5 9-10"/>'),
+  shield: svg('<path d="M12 3l8 3v6c0 4.5-3.4 8-8 9-4.6-1-8-4.5-8-9V6z"/><path d="m8.5 12 2.5 2.5 4.5-5"/>'),
+  quote: svg('<path d="M7 7h4v4c0 3-1.5 5-4 6M15 7h4v4c0 3-1.5 5-4 6"/>'),
+  user: svg('<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>'),
+  link: svg('<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/>'),
+  note: svg('<path d="M5 4h14v12l-4 4H5z"/><path d="M15 20v-4h4M9 9h6M9 13h4"/>'),
+  gearI: `<svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="var(--accent2)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>`,
+  stackI: `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="6" rx="2"/><rect x="3" y="14" width="18" height="6" rx="2"/></svg>`,
+};
+const icon = (k) => `<span class="ic">${ic[k]}</span>`;
+const node = (k, name, role, cls = "") => `<div class="node ${cls}">${icon(k)}<b>${name}</b><span>${role}</span></div>`;
+const wire = (label = "") => `<div class="wire">${label ? `<em>${label}</em>` : ""}</div>`;
+const note = (k, text) => `${ic[k]}<span>${text}</span>`;
+const chk = (k, when, what, cls = "") => `<div class="chk ${cls}">${icon(k)}<div><small>${when}</small><b>${what}</b></div></div>`;
+
+// ------------------------------------------------------------ 1: the text arrives
+document.getElementById("lane1").innerHTML = [
+  node("phone", "Your phone", "Texts the Recco number"),
+  node("msg", "Zernio", "SMS number, calls the webhook"),
+  node("lambda", "API Lambda", "Checks the HMAC signature"),
+  node("topic", "Amazon SNS", "Inbound-text topic"),
+  node("queue", "Amazon SQS", "3 tries, then a dead-letter queue"),
+].join(wire());
+document.getElementById("note1").innerHTML = note("info",
+  "The webhook republishes each text in the AWS End User Messaging format, so a number from AWS can replace Zernio without a code change.");
+
+// ------------------------------------------------------------ 2: intake
+document.getElementById("checks2").innerHTML = [
+  chk("repeat", "Message id already seen", "Skipped, so a retry never makes two cards"),
+  chk("link", "A five-digit pairing code", "Links the phone to that TV"),
+  chk("stop", "A phone that isn’t linked to a TV", "Dropped. Recco never texts back."),
+  chk("play", "Anything else", "Saved, placeholder sent to the TV, agent started", "go"),
+].join("");
+document.getElementById("note2").innerHTML = note("lock", "Phone numbers are stored only as salted hashes, plus the last four digits for the TV to show.");
+
+// ------------------------------------------------------------ 3: worker
+document.getElementById("lane3").innerHTML =
+  node("lambda", "Intake Lambda", "Saves the text", "wide") + wire("async invoke")
+  + node("lambda", "Agent worker Lambda", "Calls InvokeAgentRuntime", "wide") + wire("one session per text")
+  + node("chip", "AgentCore Runtime", "Hosts the agent on Node.js 22", "wide");
+document.getElementById("note3").innerHTML = note("alert",
+  "If AgentCore can’t be reached, the worker marks the text failed and the TV removes the placeholder.");
+
+// ------------------------------------------------------------ 4: the agent
+const tool = (k, name, text, uses, cls = "") => `<div class="tool ${cls}"><div class="th">${icon(k)}<code>${name}</code></div><p>${text}</p>
+  <div class="uses">${uses.map(([u, aws]) => `<span class="chip ${aws ? "aws" : ""}">${u}</span>`).join("")}</div></div>`;
+document.getElementById("v4").innerHTML = `
+  <div class="rowA">
+    <div class="textin"><div class="label">The text</div>
+      <div class="sms">Steph says these are perfect for a cold night <u>filmtok.com/v/7Kq2RxZ</u></div></div>
+    ${wire("waits 5 s for follow-ups")}
+    <div class="agent">
+      <div class="top"><span class="ic">${ic.spark}</span><b>Recco Agent</b></div>
+      <dl>
+        <dt>Model</dt><dd>Claude Haiku 5.5 via Vercel AI Gateway</dd>
+        <dt>Code</dt><dd>Vercel AI SDK, four tools</dd>
+        <dt>Runs on</dt><dd>Amazon Bedrock AgentCore Runtime</dd>
+        <dt>Input</dt><dd>Texts and posts are read as data, never as instructions</dd>
+        <dt>Limits</dt><dd>10 steps and 40 seconds per text</dd>
+      </dl>
+    </div>
+  </div>
+  <div class="tools">
+    ${tool("page", "read_post", "Reads a link from the text: a post’s caption and transcript, or a web page’s text. It only opens links that are in your text.",
+      [["ScrapeCreators for TikTok, Instagram, YouTube"], ["Jina Reader for web pages"]])}
+    ${tool("search", "find_titles", "Looks up each title in OMDb and returns real matches with their IMDb ids. For a misspelled title, the agent tries again, up to three times per show.",
+      [["OMDb API"], ["7-day cache in DynamoDB", 1]])}
+    ${tool("users", "list_friends", "Lists the friends this household already has, so “steph” is filed under the existing Steph.",
+      [["Amazon DynamoDB", 1]])}
+    ${tool("save", "save_cards", "Plain code, not the model. It checks every card, saves the ones that pass and tells the TV.",
+      [["Amazon DynamoDB", 1], ["AWS AppSync Events", 1]], "code")}
+  </div>
+  <div class="trace">
+    <div class="label">This text, step by step</div>
+    <ol>
+      <li><span class="k">1</span><code><b>read_post</b>(filmtok.com/v/7Kq2RxZ)</code><span>Caption and transcript name three shows</span></li>
+      <li><span class="k">2</span><code><b>find_titles</b>, once per show</code><span>Room 104, Couch Time and Third-Floor Mystery each match</span></li>
+      <li><span class="k">3</span><code><b>list_friends</b>()</code><span>Steph is already a friend, so the cards are filed under Steph</span></li>
+      <li><span class="k">4</span><code><b>save_cards</b>(3 cards)</code><span>One stack, “Steph’s Cold Night Picks”, with your words as the note</span></li>
+    </ol>
+  </div>`;
+
+// ------------------------------------------------------------ 5: save_cards
+document.getElementById("checks5").innerHTML = [
+  chk("search", "Every title", "Must come from find_titles in this run. Anything else is rejected."),
+  chk("quote", "The note", "Must be your exact words. If the model rewords it, your whole text is kept."),
+  chk("user", "The friend", "Must be named in your text. Names from a post are dropped."),
+  chk("note", "If nothing matches", "Your words are saved as a note. Recco never invents a title."),
+].join("");
+
+// ------------------------------------------------------------ TV screens (Recco TV v3; components from app-stages.html)
+const THEME = { focus: "#E28A3B", segOn: "#E28A3B", segOnFg: "#1D1410", segOff: "rgba(255,246,232,.8)", canvas: "#1D2929", s: "18,28,30", border: "rgba(255,246,232,.2)", accent2: "#E28A3B", text: "#FFF6E8", text2: "#C4CAC0", tint: "linear-gradient(135deg,rgba(200,87,47,.42),rgba(226,138,59,.22))" };
+const themeVars = `--canvas:${THEME.canvas};--surface:rgba(${THEME.s},.8);--surfaceSolid:rgba(${THEME.s},.72);--surface2:rgba(${THEME.s},.96);--surface2solid:rgb(${THEME.s});--border:${THEME.border};--accent2:${THEME.accent2};--text:${THEME.text};--textB:${THEME.text};--text2:${THEME.text2};--textBubble:${THEME.text};--tint:${THEME.tint};--focus:${THEME.focus};--segOn:${THEME.segOn};--segOnFg:${THEME.segOnFg};--segOff:${THEME.segOff}`;
+const BG = "../../apps/tv/assets/backgrounds/";
+const LOGO = "../../apps/tv/assets/recco-logo.png";
+const P = (slug) => `posters-v2/${slug}.jpg`;
+
+const RECS = {
+  stack:  { stack: true, title: "Steph’s Cold Night Picks", type: "FilmTok", count: "3 shows", from: "Steph", msg: "Steph says these are perfect for a cold night", time: "now", items: ["room-104", "couch-time", "third-floor-mystery"] },
+  garage: { title: "Two-Car Garage", type: "Series", year: "1998–2007", imdb: "7.4", rt: "65%", poster: "two-car-garage", from: "Jill", msg: "Jill says it’s hilarious", time: "1h ago" },
+  fog:    { title: "The Fog House", type: "Film", year: "2021", imdb: "7.1", rt: "89%", poster: "fog-house", from: "Recco’s picks", av: "✦", msg: "movies for a rainy night", time: "2h ago" },
+  sand:   { title: "Sandfall: Part Two", type: "Film", year: "2024", imdb: "8.5", rt: "92%", poster: "sandfall-part-two", from: "Dad", msg: "Dad says it’s brilliant", time: "3h ago" },
+  will:   { title: "The Will Reading", type: "Film", year: "2022", imdb: "7.9", rt: "94%", poster: "will-reading", from: "Sarah", msg: "the ending is insane", time: "5h ago" },
+  floor:  { title: "Floor Thirteen", type: "Series", year: "2022–", imdb: "8.7", rt: "97%", poster: "floor-thirteen", from: "Mom", msg: "your dad and I are hooked", time: "Tue" },
+};
+const ratings = (r) => `<div class="ratings" style="font-size:19px"><span class="r1"><span class="imdb" style="width:28px;height:15px"></span>${r.imdb}</span><span class="r1"><span class="rt" style="width:16px;height:16px"></span>${r.rt}</span></div>`;
+const avatar = (ch) => `<div class="av" style="width:24px;height:24px;font-size:12px">${ch}</div>`;
+const senderLine = (r) => `<div class="sender">${avatar(r.av || r.from[0])}<span class="sname">${r.from}</span><span>· ${r.time}</span></div>`;
+function card(r, cls = "") {
+  if (r.stack) {
+    const [a, b, c] = r.items;
+    return `<div class="card ${cls}"><div class="ccol"><div class="ctitle">${r.title}</div>
+        <div class="cmeta"><span class="stackchip">${ic.stackI}${r.count}</span><span>${r.type}</span></div>
+        <div class="cbot"><div class="bwrap"><div class="bubble">${r.msg}</div></div>${senderLine(r)}</div></div>
+      <div class="fan"><div class="fp fc" style="background-image:url(${P(c)})"></div><div class="fp fb" style="background-image:url(${P(b)})"></div><div class="fp fa" style="background-image:url(${P(a)})"></div></div></div>`;
+  }
+  return `<div class="card ${cls}"><div class="ccol"><div class="ctitle">${r.title}</div>
+      <div class="cmeta"><span>${r.type} · ${r.year}</span></div>${ratings(r)}
+      <div class="cbot"><div class="bwrap"><div class="bubble">${r.msg}</div></div>${senderLine(r)}</div></div>
+    <div class="poster" style="background-image:url(${P(r.poster)})"></div></div>`;
+}
+const placeholder = (status) => `<div class="card pending">
+    <div class="ccol"><div class="pbar" style="width:70%;height:30px"></div><div class="pbar" style="width:40%;height:19px"></div>
+      <div class="cbot"><div class="bwrap" style="flex-direction:column;align-items:flex-start;justify-content:flex-end"><div class="bubble"><div class="dots"><div class="dot"></div><div class="dot" style="opacity:1;transform:translateY(-7px)"></div><div class="dot"></div></div></div><div class="pstatus">${status}</div></div></div></div>
+    <div class="pslot"><div class="psweep"></div></div></div>`;
+const screen = (cards) => `<div class="screen" style="${themeVars}">
+    <div class="still" style="background-image:url(${BG}fallNight.jpg)"></div><div class="vign" style="background-image:url(${BG}vignette-fallNight.png)"></div>
+    <div class="hdr"><div class="tabs"><div class="seg">Featured</div><div class="seg on">Inbox</div></div><img class="tvlogo" src="${LOGO}" alt=""><div class="gear">${ic.gearI}</div></div>
+    <div class="grid">${cards.join("")}</div></div>`;
+const tv = (inner, w = 426) => {
+  const s = w / 1920, h = Math.round(1080 * s);
+  return `<div class="tvwrap" style="left:0;top:0"><div class="tvglass" style="width:${w}px;height:${h}px"><div class="tvscale" style="transform:scale(${s})">${inner}</div></div><div class="tvfoot"></div></div>`;
+};
+const rest = [card(RECS.garage), card(RECS.fog), card(RECS.sand), card(RECS.will), card(RECS.floor)];
+document.getElementById("tv2").innerHTML = tv(screen([placeholder("Reading your text…"), ...rest]));
+document.getElementById("tv5").innerHTML = tv(screen([card(RECS.stack, "focus"), ...rest]));
+
+document.title = "H=" + document.getElementById("canvas").scrollHeight;
+(document.fonts ? document.fonts.ready : Promise.resolve()).then(() => { document.title = "H=" + document.getElementById("canvas").scrollHeight; });
+</script>
+</body>
+</html>

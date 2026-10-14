@@ -17,6 +17,22 @@ import { env } from "./env";
 const store = new MemoryStore();
 const publisher = new MemoryPublisher();
 await seedDemo(store, env.phoneSalt);
+const seedPosters = process.env.OMDB_API_KEY ? await addSeedPosters() : 0;
+
+/** The seed has no poster URLs. With an OMDb key, look them up so the demo shows real art. */
+async function addSeedPosters(): Promise<number> {
+  const { titles } = createSources(process.env);
+  const poster = (id: string) => titles.details(id).then((t) => t?.posterUrl).catch(() => undefined);
+  const cards = await Promise.all(
+    [...store.cards.values()].map(async (c) => ({
+      ...c,
+      posterUrl: c.titleId ? await poster(c.titleId) : undefined,
+      candidates: await Promise.all(c.candidates.map(async (k) => ({ ...k, posterUrl: await poster(k.titleId) }))),
+    })),
+  );
+  await store.putCards(cards);
+  return cards.filter((c) => c.posterUrl).length;
+}
 
 publisher.onPublish((channelId, event) => {
   const detail =
@@ -108,7 +124,7 @@ serve({ fetch: app.fetch, port: env.port, hostname: "0.0.0.0" }, () => {
   console.log(`  http://localhost:${env.port}`);
   for (const ip of lanAddresses) console.log(`  http://${ip}:${env.port}`);
   console.log(`\nAgent: ${agentLabel}`);
-  console.log(`\nDemo household: 3 friends, 13 cards, phone ending ${DEMO.phone.slice(-4)}`);
+  console.log(`\nDemo household: 3 friends, 13 cards (${seedPosters ? `${seedPosters} posters from OMDb` : "no posters"}), phone ending ${DEMO.phone.slice(-4)}`);
   console.log(`  Demo device token: ${DEMO.deviceToken}`);
   console.log(`  curl -H "Authorization: Bearer ${DEMO.deviceToken}" localhost:${env.port}/inbox`);
   console.log(`\nSend a text:`);

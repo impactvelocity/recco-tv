@@ -1,0 +1,431 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Recco app stages</title>
+<!--
+  Source for docs/diagram/app-stages.png (1800×1200, rendered at 2x). The TV screens are built from the
+  same components as the demo video (video/recco-demo/src/build.mjs) and the live placeholder tile
+  (apps/tv/src/components/InboxTile.tsx). Posters are the original artwork from the demo video.
+  Re-render from this folder:
+  "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --headless=new --hide-scrollbars --allow-file-access-from-files \
+    --window-size=1800,1200 --force-device-scale-factor=2 --virtual-time-budget=4000 \
+    --screenshot="$PWD/app-stages.png" "file://$PWD/app-stages.html"
+-->
+<style>
+  @font-face { font-family: "Inter"; src: url(fonts/Inter.woff2) format("woff2"); font-weight: 100 900; }
+
+  :root {
+    --bg: #121918;
+    --border: rgba(255, 247, 232, .10);
+    --border-hi: rgba(240, 182, 103, .32);
+    --amber: #F0B667;
+    --orange: #D3632D;
+    --ink: #FFF7E8;
+    --ink2: #CFC9B4;
+    --muted: #8E978D;
+    --sms: #1A7A33;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 1800px; height: 1200px; overflow: hidden; background: var(--bg); }
+  body { font-family: "Inter", -apple-system, "Helvetica Neue", sans-serif; color: var(--ink); -webkit-font-smoothing: antialiased; }
+  #canvas { position: relative; width: 1800px; height: 1200px; overflow: hidden; }
+  .abs { position: absolute; }
+
+  .bg-photo { inset: 0; background: url(../../apps/tv/assets/backgrounds/fallNight.jpg) center / cover; opacity: .24; filter: saturate(.85); }
+  .bg-wash { inset: 0; background:
+      radial-gradient(ellipse 40% 34% at 84% 76%, rgba(211, 99, 45, .18), transparent 70%),
+      radial-gradient(ellipse 30% 30% at 12% 30%, rgba(240, 182, 103, .10), transparent 70%),
+      linear-gradient(180deg, rgba(18, 25, 24, .78) 0%, rgba(18, 25, 24, .90) 30%, rgba(18, 25, 24, .93) 100%); }
+
+  /* Header (matches how-it-works.html) */
+  .logo { left: 64px; top: 40px; height: 80px; }
+  .head-rule { left: 318px; top: 50px; width: 1px; height: 64px; background: rgba(255, 247, 232, .18); }
+  .headline { left: 348px; top: 44px; font-size: 38px; font-weight: 700; letter-spacing: -.02em; line-height: 1.1; }
+  .headline em { font-style: normal; color: var(--amber); }
+  .subhead { left: 348px; top: 95px; font-size: 19px; color: var(--ink2); letter-spacing: -.003em; }
+  .badges { right: 64px; top: 46px; display: flex; flex-direction: column; align-items: flex-end; gap: 10px; }
+  .badge { font-size: 12.5px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--ink2);
+           padding: 8px 14px; border: 1px solid var(--border); border-radius: 999px; background: rgba(255, 247, 232, .04); }
+  .badge b { color: var(--amber); font-weight: 700; }
+
+  /* Stage panels */
+  .panel { width: 530px; height: 468px; border-radius: 26px; overflow: hidden;
+           background: rgba(22, 31, 29, .82); border: 1px solid var(--border);
+           box-shadow: 0 40px 100px rgba(0, 0, 0, .40), inset 0 1px 0 rgba(255, 247, 232, .05); }
+  .panel.hero { border-color: var(--border-hi);
+           background: linear-gradient(150deg, rgba(211, 99, 45, .16), rgba(22, 31, 29, .86) 50%); }
+  .phead { position: absolute; left: 28px; top: 24px; right: 28px; }
+  .step { display: flex; align-items: center; gap: 10px; }
+  .num { width: 30px; height: 30px; border-radius: 50%; background: var(--amber); color: #2A1A10;
+         font-size: 16px; font-weight: 800; display: grid; place-items: center; flex: none; }
+  .kick { font-size: 12.5px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--amber); }
+  .ptitle { margin-top: 14px; font-size: 26px; font-weight: 700; letter-spacing: -.018em; line-height: 1.1; }
+  .psub { margin-top: 8px; font-size: 15px; line-height: 1.42; color: var(--ink2); }
+  .vis { position: absolute; left: 24px; right: 24px; top: 172px; bottom: 22px; }
+
+  .next { width: 30px; height: 30px; border-radius: 50%; background: #1d2725; border: 1px solid var(--border-hi);
+          display: grid; place-items: center; z-index: 5; }
+  .next svg { width: 16px; height: 16px; stroke: var(--amber); fill: none; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
+
+  /* TV device */
+  .tvwrap { position: absolute; padding: 7px; border-radius: 14px; background: #0a0c0c;
+            box-shadow: 0 30px 70px rgba(0, 0, 0, .55), inset 0 0 0 1.5px #262b2b; }
+  .tvglass { position: relative; overflow: hidden; border-radius: 6px; background: #000; }
+  .tvscale { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; transform-origin: 0 0; }
+  .tvfoot { position: absolute; left: 50%; bottom: -12px; width: 120px; height: 7px; margin-left: -60px; border-radius: 0 0 6px 6px; background: #0a0c0c; }
+
+  /* ---------- TV screen (design: Recco TV v3; same CSS as the demo video) ---------- */
+  .screen { position: absolute; inset: 0; width: 1920px; height: 1080px; color: var(--text); font-family: "Inter", sans-serif; overflow: hidden; }
+  .screen .still, .screen .vign { position: absolute; inset: 0; background-size: cover; background-position: center; }
+  .screen .vign { background-size: 100% 100%; }
+  .screen .dim { position: absolute; inset: 0; background: var(--canvas); opacity: .4; }
+  .hdr { position: absolute; inset: 0 0 auto 0; height: 140px; }
+  .tabs { position: absolute; top: 48px; left: 50%; margin-left: -177px; display: flex; gap: 4px; background: var(--surface); border-radius: 999px; padding: 6px; border: 1px solid var(--border); }
+  .seg { padding: 14px 40px; border-radius: 999px; font-size: 26px; font-weight: 600; letter-spacing: -.01em; color: var(--segOff); }
+  .seg.on { background: var(--segOn); color: var(--segOnFg); }
+  .tvlogo { position: absolute; top: 54px; left: 96px; height: 64px; width: auto; }
+  .gear { position: absolute; top: 56px; right: 96px; width: 60px; height: 60px; border-radius: 50%; background: var(--surface); border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; }
+  .grid { position: absolute; top: 140px; left: 48px; right: 48px; bottom: 0; padding: 28px 48px 56px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 28px; align-content: start; }
+  .card { display: flex; gap: 20px; border-radius: 20px; background: var(--surface); border: 1px solid var(--border); padding: 18px; height: 414px; position: relative; }
+  .card.focus { background: var(--surfaceSolid); outline: 4px solid var(--focus); transform: scale(1.04); box-shadow: 0 40px 90px rgba(0,0,0,.6); z-index: 5; }
+  .ccol { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+  .ctitle { font-size: 30px; font-weight: 700; line-height: 1.1; letter-spacing: -.01em; }
+  .cmeta { font-size: 19px; color: var(--text2); display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .stackchip { display: inline-flex; align-items: center; gap: 6px; color: var(--textB); background: rgba(255,255,255,.2); border: 1px solid rgba(255,255,255,.08); font-weight: 600; font-size: 16px; padding: 3px 10px; border-radius: 999px; line-height: 1.3; }
+  .ratings { display: flex; align-items: center; gap: 18px; color: var(--textB); font-weight: 600; }
+  .r1 { display: flex; align-items: center; gap: 7px; }
+  .imdb { display: inline-block; flex: none; background: #F2C230; border-radius: 4px; }
+  .rt { display: inline-block; flex: none; border-radius: 50%; background: #D9483B; }
+  .cbot { flex: 1; min-height: 0; display: flex; flex-direction: column; justify-content: flex-end; gap: 10px; margin-top: 4px; }
+  .bwrap { flex: 1; min-height: 0; display: flex; align-items: flex-end; }
+  .bubble { display: inline-block; max-width: 100%; max-height: 100%; overflow: hidden; background: var(--tint); border-radius: 18px 18px 18px 4px; padding: 14px 18px; font-size: 24px; line-height: 1.3; color: var(--textBubble); }
+  .sender { display: flex; align-items: center; gap: 8px; font-size: 19px; color: var(--text2); padding-left: 4px; }
+  .sname { font-weight: 600; color: var(--textB); white-space: nowrap; }
+  .av { border-radius: 50%; flex: none; display: flex; align-items: center; justify-content: center; font-weight: 600; color: var(--textB); background: rgba(255,255,255,.2); border: 1px solid rgba(255,255,255,.08); }
+  .poster { width: 252px; height: 378px; border-radius: 14px; flex: none; background-size: cover; background-position: center; box-shadow: 0 16px 40px rgba(0,0,0,.45); }
+  .fan { width: 252px; height: 378px; position: relative; flex: none; isolation: isolate; }
+  .fp { position: absolute; width: 200px; height: 300px; border-radius: 14px; background-size: cover; background-position: center; box-shadow: 0 16px 40px rgba(0,0,0,.5); border: 1px solid rgba(255,255,255,.12); }
+  .fc { left: 44px; top: 48px; z-index: 1; rotate: 10deg; }
+  .fb { left: 8px; top: 40px; z-index: 2; rotate: -7deg; }
+  .fa { left: 26px; top: 30px; z-index: 3; }
+  /* placeholder tile (InboxTile.tsx PlaceholderTile) */
+  .card.pending { border: 2px dashed var(--border); }
+  .pbar { background: rgba(255,255,255,.12); border-radius: 8px; }
+  .pslot { width: 252px; height: 378px; border-radius: 14px; flex: none; overflow: hidden; position: relative; background: rgba(255,255,255,.12); }
+  .psweep { position: absolute; top: 0; bottom: 0; left: 70px; width: 140px; background: linear-gradient(90deg, rgba(255,255,255,0), rgba(255,255,255,.16), rgba(255,255,255,0)); }
+  .dots { display: flex; gap: 8px; padding: 8px 0; }
+  .dot { width: 12px; height: 12px; border-radius: 6px; background: var(--textBubble); opacity: .4; }
+  .pstatus { font-size: 19px; color: var(--text2); margin-top: 12px; }
+  .center-col { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 28px; padding: 0 200px; }
+  .digits { display: flex; gap: 20px; }
+  .digit { width: 170px; height: 210px; border-radius: 24px; background: var(--surface2); border: 2px solid var(--border); box-shadow: 0 16px 40px rgba(0,0,0,.35); display: flex; align-items: center; justify-content: center; font-size: 150px; font-weight: 700; line-height: 1; }
+  .waitpill { display: flex; align-items: center; gap: 16px; margin-top: 8px; font-size: 25px; font-weight: 600; background: var(--surface2); border: 1px solid var(--border); border-radius: 999px; padding: 14px 28px 14px 18px; box-shadow: 0 12px 30px rgba(0,0,0,.35); }
+  .spin { width: 30px; height: 30px; border-radius: 50%; border: 4px solid rgba(255,255,255,.18); border-top-color: var(--accent2); }
+  .scrim { position: absolute; inset: 0; z-index: 20; background: rgba(0,0,0,.45); backdrop-filter: blur(12px); }
+  .drawer { position: absolute; z-index: 21; top: 24px; right: 24px; width: 760px; height: 1032px; background: var(--surface2); border: 1px solid var(--border); border-radius: 28px; padding: 48px 52px; display: flex; flex-direction: column; gap: 34px; box-shadow: 0 40px 120px rgba(0,0,0,.6); overflow: hidden; }
+  .dposter { width: 200px; height: 300px; border-radius: 16px; flex: none; background-size: cover; background-position: center; box-shadow: 0 20px 50px rgba(0,0,0,.5); }
+  .alexa { display: flex; align-items: center; gap: 18px; background: rgba(255,255,255,.06); border-radius: 16px; padding: 18px 22px; }
+  .alexa.lit { outline: 4px solid var(--focus); background: rgba(255,255,255,.1); }
+  .mic { width: 44px; height: 44px; border-radius: 50%; flex: none; display: flex; align-items: center; justify-content: center; color: var(--textB); background: rgba(255,255,255,.2); border: 1px solid rgba(255,255,255,.08); }
+  .dbtn { font-size: 23px; font-weight: 600; border: 1px solid var(--border); border-radius: 14px; padding: 16px 20px; display: flex; align-items: center; justify-content: center; gap: 10px; flex: 1; }
+  .dbtn.focused { outline: 3px solid var(--focus); background: var(--surface2solid); }
+
+  /* ---------- Stage 1: SMS chip ---------- */
+  .smschip { position: absolute; padding: 10px 12px 12px; border-radius: 18px; background: #0e0e10; border: 1px solid #2a2a2c;
+             box-shadow: 0 24px 50px rgba(0,0,0,.6); width: 176px; }
+  .smschip .to { display: flex; align-items: center; gap: 8px; font-size: 11px; color: #8e8e93; padding-bottom: 8px; border-bottom: 1px solid #1f1f22; margin-bottom: 10px; }
+  .smschip .to b { color: #fff; font-weight: 600; font-size: 12px; display: block; }
+  .phav { width: 26px; height: 26px; border-radius: 50%; background: var(--orange); display: grid; place-items: center; overflow: hidden; flex: none; }
+  .phav img { width: 22px; height: auto; }
+  .sbub { margin-left: auto; width: fit-content; background: var(--sms); color: #fff; font-size: 15px; line-height: 1.3; padding: 7px 12px; border-radius: 16px 16px 5px 16px; }
+  .sbub.big { font-size: 20px; font-weight: 700; letter-spacing: .06em; }
+  .deliv { text-align: right; font-size: 10px; color: #8e8e93; margin-top: 4px; }
+  .okdot { border-radius: 50%; background: var(--amber); display: grid; place-items: center; flex: none; }
+  .okpill { position: absolute; display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; color: var(--ink);
+            padding: 7px 13px 7px 8px; border-radius: 999px; background: #1d2725; border: 1px solid var(--border-hi); box-shadow: 0 14px 30px rgba(0,0,0,.45); }
+  .okdot { width: 20px; height: 20px; border-radius: 50%; background: var(--amber); display: grid; place-items: center; }
+  .okdot svg { width: 12px; height: 12px; stroke: #2A1A10; fill: none; stroke-width: 3.2; stroke-linecap: round; stroke-linejoin: round; }
+
+  /* ---------- Stage 2: phone thread ---------- */
+  .phone { position: absolute; width: 270px; border-radius: 38px; background: #0b0b0c; padding: 8px; box-shadow: 0 30px 70px rgba(0,0,0,.6), inset 0 0 0 1.5px #2a2a2c; }
+  .phscr { border-radius: 31px; background: #000; overflow: hidden; height: 100%; }
+  .phstat { height: 24px; display: flex; align-items: center; justify-content: space-between; padding: 0 20px; font-size: 11px; font-weight: 600; }
+  .phisl { width: 66px; height: 19px; border-radius: 12px; background: #151515; }
+  .phbat { width: 18px; height: 9px; border-radius: 3px; border: 1.5px solid #fff; }
+  .phhead { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 0 0 5px; background: #0e0e10; border-bottom: 1px solid #1f1f22; }
+  .phhead .phav { width: 28px; height: 28px; } .phhead .phav img { width: 24px; }
+  .phhead .nm { font-size: 11.5px; font-weight: 600; } .phhead .nb { font-size: 9px; color: #8e8e93; }
+  .thread { display: flex; flex-direction: column; gap: 12px; padding: 8px 10px 0; }
+  .thread .sbub { font-size: 12px; padding: 7px 11px; border-radius: 15px 15px 4px 15px; max-width: 220px; white-space: nowrap; }
+  .tday { text-align: center; font-size: 9px; color: #8e8e93; }
+  .linkb { margin-left: auto; width: 196px; border-radius: 14px; overflow: hidden; background: #1c1c1e; }
+  .lthumb { height: 28px; background: linear-gradient(135deg, #3a2b4e, #c8572f); display: grid; place-items: center; }
+  .play { width: 0; height: 0; border-left: 12px solid rgba(255,255,255,.92); border-top: 7px solid transparent; border-bottom: 7px solid transparent; margin-left: 3px; }
+  .lmeta { padding: 6px 10px 8px; } .lt { font-size: 11px; font-weight: 600; line-height: 1.25; white-space: nowrap; } .lu { font-size: 9px; color: #8e8e93; margin-top: 2px; }
+  .tag { position: absolute; z-index: 2; display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; color: var(--ink);
+         padding: 3px 12px 3px 8px; border-radius: 12px; background: rgba(33, 45, 42, .94); border: 1px solid var(--border); white-space: nowrap; }
+  .tag .ti { width: 22px; height: 22px; border-radius: 7px; background: rgba(240, 182, 103, .14); display: grid; place-items: center; flex: none; }
+  .tag svg { width: 13px; height: 13px; stroke: var(--amber); fill: none; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+  .tag small { display: block; font-size: 11px; font-weight: 500; color: var(--muted); margin-top: 1px; }
+  .lead { position: absolute; height: 0; border-top: 1.5px dashed rgba(240, 182, 103, .45); }
+
+  /* ---------- Stage 3: agent ---------- */
+  .inb { position: absolute; display: flex; flex-direction: column; gap: 7px; align-items: flex-end; }
+  .inb .sbub { font-size: 12.5px; padding: 7px 11px; border-radius: 15px 15px 4px 15px; }
+  .inb .sbub.link { background: #1c1c1e; color: #9fc6ff; text-decoration: underline; text-underline-offset: 2px; }
+  .orb { position: absolute; width: 96px; height: 96px; border-radius: 50%; display: grid; place-items: center; text-align: center;
+         background: radial-gradient(circle at 50% 40%, rgba(240,182,103,.28), rgba(211,99,45,.10) 70%);
+         border: 1.5px solid rgba(240, 182, 103, .55); box-shadow: 0 0 0 10px rgba(240,182,103,.06), 0 0 0 22px rgba(240,182,103,.03), 0 20px 50px rgba(0,0,0,.4); }
+  .orb svg { width: 30px; height: 30px; stroke: var(--amber); fill: none; stroke-width: 2; stroke-linecap: round; }
+  .orb div { font-size: 11.5px; font-weight: 700; margin-top: -10px; }
+  .flow { position: absolute; height: 0; border-top: 1.5px solid rgba(240, 182, 103, .6); }
+  .flow::after { content: ""; position: absolute; right: -1px; top: -5.5px; border-left: 8px solid rgba(240,182,103,.8); border-top: 5px solid transparent; border-bottom: 5px solid transparent; }
+  .outp { position: absolute; display: flex; gap: 8px; }
+  .mp { width: 44px; height: 66px; border-radius: 7px; background-size: cover; background-position: center; position: relative; box-shadow: 0 10px 24px rgba(0,0,0,.5); border: 1px solid rgba(255,255,255,.12); }
+  .mp i { position: absolute; right: -6px; bottom: -6px; width: 19px; height: 19px; border-radius: 50%; background: var(--amber); display: grid; place-items: center; box-shadow: 0 0 0 2px #1a2321; }
+  .mp i svg { width: 11px; height: 11px; stroke: #2A1A10; fill: none; stroke-width: 3.4; stroke-linecap: round; stroke-linejoin: round; }
+  .facts { position: absolute; left: 0; right: 0; bottom: 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .fact { border-radius: 12px; background: rgba(33, 45, 42, .94); border: 1px solid var(--border); padding: 9px 11px; }
+  .fact .fk { font-size: 10px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--amber); }
+  .fact .fv { font-size: 13px; line-height: 1.3; margin-top: 3px; }
+  .verified { position: absolute; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 8px; font-size: 13px; color: var(--ink2); }
+  .verified .okdot { width: 18px; height: 18px; }
+  .tools { position: absolute; display: flex; gap: 5px; }
+  .tool { font-family: "SF Mono", ui-monospace, Menlo, monospace; font-size: 10.5px; color: var(--ink);
+          padding: 3px 6px; border-radius: 6px; background: rgba(255, 247, 232, .07); border: 1px solid var(--border); }
+
+  /* ---------- Stage 4: crop ---------- */
+  .crop { position: absolute; left: 0; right: 0; overflow: hidden; border-radius: 14px; border: 1px solid var(--border); box-shadow: 0 24px 60px rgba(0,0,0,.45); }
+  .when { position: absolute; font-size: 12px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--amber); }
+  .when span { color: var(--muted); font-weight: 600; letter-spacing: .04em; text-transform: none; font-size: 12.5px; margin-left: 6px; }
+  .arrowchip { position: absolute; width: 32px; height: 32px; border-radius: 50%; background: var(--amber); display: grid; place-items: center; box-shadow: 0 8px 20px rgba(0,0,0,.5); z-index: 3; }
+  .arrowchip svg { width: 16px; height: 16px; stroke: #2A1A10; fill: none; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+  .steps { position: absolute; left: 0; right: 0; bottom: 0; display: flex; align-items: center; justify-content: center; gap: 6px; flex-wrap: nowrap; }
+  .steps .s { font-size: 12px; color: var(--ink2); padding: 5px 9px; border-radius: 999px; background: rgba(255, 247, 232, .05); border: 1px solid var(--border); white-space: nowrap; }
+  .steps .s.on { color: var(--ink); border-color: var(--border-hi); background: rgba(240,182,103,.10); }
+  .steps .sep { color: var(--muted); font-size: 11px; }
+
+  /* ---------- Stage 5/6 ---------- */
+  .sources { position: absolute; left: 0; right: 0; bottom: 0; display: flex; gap: 6px; justify-content: center; }
+  .src { white-space: nowrap; display: flex; align-items: center; gap: 7px; font-size: 12.5px; color: var(--ink2); padding: 6px 11px 6px 7px; border-radius: 999px; background: rgba(255, 247, 232, .05); border: 1px solid var(--border); }
+  .src .a { width: 20px; height: 20px; border-radius: 50%; background: rgba(240,182,103,.18); color: var(--amber); font-size: 10.5px; font-weight: 700; display: grid; place-items: center; }
+  .say { position: absolute; display: flex; align-items: center; gap: 12px; padding: 10px 18px 10px 10px; border-radius: 999px;
+         background: rgba(33, 45, 42, .97); border: 1px solid var(--border-hi); box-shadow: 0 24px 50px rgba(0,0,0,.55); }
+  .say .m { width: 38px; height: 38px; border-radius: 50%; background: var(--amber); display: grid; place-items: center; flex: none; }
+  .say .m svg { width: 19px; height: 19px; stroke: #2A1A10; fill: none; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+  .say small { display: block; font-size: 11.5px; color: var(--ink2); }
+  .say b { display: block; font-size: 17px; font-weight: 600; letter-spacing: -.01em; white-space: nowrap; }
+</style>
+</head>
+<body>
+<div id="canvas">
+  <div class="abs bg-photo"></div>
+  <div class="abs bg-wash"></div>
+
+  <img class="abs logo" src="../../apps/tv/assets/recco-logo.png" alt="Recco">
+  <div class="abs head-rule"></div>
+  <div class="abs headline">From a text to the couch, <em>in six steps.</em></div>
+  <div class="abs subhead">The Recco app on Fire TV: who recommended each show, what they said, and the line to say to Alexa.</div>
+  <div class="abs badges">
+    <div class="badge"><b>Amazon Developer Hackathon</b> · Fire TV track</div>
+    <div class="badge">React Native for Vega · Bedrock AgentCore</div>
+  </div>
+
+  <div id="panels"></div>
+</div>
+
+<script>
+// ------------------------------------------------------------ themes (Recco TV v3; same values as the demo video)
+const THEMES = {
+  fallDay:   { focus: "#F0B667", segOn: "#F0B667", segOnFg: "#2A1A10", segOff: "rgba(255,247,232,.8)", canvas: "#555740", s: "41,54,45", border: "rgba(255,247,232,.22)", accent2: "#F0B667", onAccent: "#2A1A10", text: "#FFF7E8", text2: "#D5CFB9", tint: "linear-gradient(135deg,rgba(211,99,45,.42),rgba(240,182,103,.22))" },
+  fallNight: { focus: "#E28A3B", segOn: "#E28A3B", segOnFg: "#1D1410", segOff: "rgba(255,246,232,.8)", canvas: "#1D2929", s: "18,28,30", border: "rgba(255,246,232,.2)", accent2: "#E28A3B", onAccent: "#1D1410", text: "#FFF6E8", text2: "#C4CAC0", tint: "linear-gradient(135deg,rgba(200,87,47,.42),rgba(226,138,59,.22))" },
+};
+const themeVars = (k) => {
+  const t = THEMES[k];
+  return `--canvas:${t.canvas};--surface:rgba(${t.s},.8);--surfaceSolid:rgba(${t.s},.72);--surface2:rgba(${t.s},.96);--surface2solid:rgb(${t.s});--border:${t.border};--accent2:${t.accent2};--onAccent:${t.onAccent};--text:${t.text};--textB:${t.text};--text2:${t.text2};--textBubble:${t.text};--tint:${t.tint};--focus:${t.focus};--segOn:${t.segOn};--segOnFg:${t.segOnFg};--segOff:${t.segOff}`;
+};
+const BG = "../../apps/tv/assets/backgrounds/";
+const LOGO = "../../apps/tv/assets/recco-logo.png";
+const P = (slug) => `posters/${slug}.jpg`;
+
+// ------------------------------------------------------------ data (original titles and posters from the demo video)
+const RECS = {
+  koq:   { title: "Two-Car Garage", type: "Series", year: "1998–2007", imdb: "7.4", rt: "65%", runtime: "22 min", genre: "Sitcom", poster: "two-car-garage", from: "Jill", msg: "Jill says it’s hilarious", time: "now", synopsis: "A delivery driver and his wife share their house, and the garage TV, with her stubborn father." },
+  slow:  { title: "Desk Nine", type: "Series", year: "2022–", imdb: "8.2", rt: "98%", poster: "desk-nine", from: "Dad", msg: "Dad says it’s brilliant", time: "1m ago" },
+  bear:  { title: "Back of House", type: "Series", year: "2022–", imdb: "8.5", rt: "99%", poster: "back-of-house", from: "Sarah", also: ["D"], fromLabel: "Sarah & Dad", msg: "you HAVE to watch Back of House, the one-take kitchen episode is insane", time: "5h ago" },
+  sev:   { title: "Floor Thirteen", type: "Series", year: "2022–", imdb: "8.7", rt: "97%", poster: "floor-thirteen", from: "Mom", also: ["S"], fromLabel: "Mom & Sarah", msg: "Floor Thirteen!! your dad and I are hooked", time: "Tue" },
+  past:  { title: "Second Summer", type: "Film", year: "2023", imdb: "7.8", rt: "95%", poster: "second-summer", from: "YouTube", msg: "Best films of 2023 you probably missed", time: "Sun" },
+  stack: { stack: true, title: "3 cozy comedies for a night in", type: "TikTok", count: "3 shows", from: "Steph", msg: "my three comfort shows when it’s cold out", time: "now", items: ["room-104", "away-game", "couch-time"] },
+};
+
+// ------------------------------------------------------------ icons
+const ic = {
+  gear: `<svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="var(--accent2)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>`,
+  stack: `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="6" rx="2"/><rect x="3" y="14" width="18" height="6" rx="2"/></svg>`,
+  mic: (s = 22) => `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0"/><path d="M12 18v3"/></svg>`,
+  checkCircle: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m8.5 12 2.5 2.5 4.5-5"/></svg>`,
+  trash: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16"/><path d="M9 7V4h6v3"/><path d="M6 7l1 13h10l1-13"/></svg>`,
+  back: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 6-6 6 6 6"/></svg>`,
+  check: `<svg viewBox="0 0 24 24"><path d="m5 12 5 5 9-10"/></svg>`,
+  chev: `<svg viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg>`,
+  user: `<svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>`,
+  link: `<svg viewBox="0 0 24 24"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/></svg>`,
+  search: `<svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>`,
+  film: `<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 4v16M17 4v16M3 9h4M3 15h4M17 9h4M17 15h4"/></svg>`,
+  spark: `<svg viewBox="0 0 24 24"><path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5 18 18M18 6l-2.5 2.5M8.5 15.5 6 18"/></svg>`,
+  micS: `<svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0"/><path d="M12 18v3"/></svg>`,
+};
+
+// ------------------------------------------------------------ TV UI components (from video/recco-demo/src/build.mjs)
+const ratings = (r, big = false) => {
+  const fs = big ? 25 : 19, dot = big ? 20 : 16, cw = big ? 34 : 28, chh = big ? 18 : 15;
+  return `<div class="ratings" style="font-size:${fs}px"><span class="r1"><span class="imdb" style="width:${cw}px;height:${chh}px"></span>${r.imdb}</span>${r.rt ? `<span class="r1"><span class="rt" style="width:${dot}px;height:${dot}px"></span>${r.rt}</span>` : ""}</div>`;
+};
+const avatar = (ch, size = 24, extra = "") => `<div class="av" style="width:${size}px;height:${size}px;font-size:${Math.round(size / 2)}px;${extra}">${ch}</div>`;
+const senderLine = (r) => {
+  const others = (r.also || []).map((o) => avatar(o, 24, "margin-left:-7px;background:var(--surface2solid);border:1px solid rgba(255,255,255,.18);box-shadow:0 0 0 2px var(--canvas)")).join("");
+  return `<div class="sender"><div style="display:flex">${avatar(r.from[0])}${others}</div><span class="sname">${r.fromLabel || r.from}</span><span>· ${r.time}</span></div>`;
+};
+function card(r, cls = "") {
+  if (r.stack) {
+    const [a, b, c] = r.items;
+    return `<div class="card ${cls}">
+      <div class="ccol"><div class="ctitle">${r.title}</div>
+        <div class="cmeta"><span class="stackchip">${ic.stack}${r.count}</span><span>${r.type}</span></div>
+        <div class="cbot"><div class="bwrap"><div class="bubble">${r.msg}</div></div>${senderLine(r)}</div></div>
+      <div class="fan"><div class="fp fc" style="background-image:url(${P(c)})"></div><div class="fp fb" style="background-image:url(${P(b)})"></div><div class="fp fa" style="background-image:url(${P(a)})"></div></div>
+    </div>`;
+  }
+  return `<div class="card ${cls}">
+    <div class="ccol"><div class="ctitle">${r.title}</div>
+      <div class="cmeta"><span>${r.type} · ${r.year}</span></div>${ratings(r)}
+      <div class="cbot"><div class="bwrap"><div class="bubble">${r.msg}</div></div>${senderLine(r)}</div></div>
+    <div class="poster" style="background-image:url(${P(r.poster)})"></div>
+  </div>`;
+}
+// The live placeholder tile: title bars, a typing bubble, a status line, a light sweeping the poster slot.
+const placeholder = (status) => `<div class="card pending">
+    <div class="ccol"><div class="pbar" style="width:70%;height:30px"></div><div class="pbar" style="width:40%;height:19px"></div>
+      <div class="cbot"><div class="bwrap" style="flex-direction:column;align-items:flex-start;justify-content:flex-end"><div class="bubble"><div class="dots"><div class="dot"></div><div class="dot" style="opacity:1;transform:translateY(-7px)"></div><div class="dot"></div></div></div><div class="pstatus">${status}</div></div></div></div>
+    <div class="pslot"><div class="psweep"></div></div>
+  </div>`;
+const header = (tab = "inbox") => `<div class="hdr">
+    <div class="tabs"><div class="seg ${tab === "featured" ? "on" : ""}">Featured</div><div class="seg ${tab === "inbox" ? "on" : ""}">Inbox</div></div>
+    <img class="tvlogo" src="${LOGO}" alt="Recco"><div class="gear">${ic.gear}</div></div>`;
+const screen = ({ theme, body = "", hdr = true }) => `<div class="screen" style="${themeVars(theme)}">
+    <div class="still" style="background-image:url(${BG}${theme}.jpg)"></div>
+    <div class="vign" style="background-image:url(${BG}vignette-${theme}.png)"></div>
+    ${hdr ? header() : ""}${body}</div>`;
+const grid = (cards) => `<div class="grid">${cards.join("")}</div>`;
+const codeBody = `<div class="dim"></div><div class="center-col">
+    <img src="${LOGO}" alt="Recco" style="height:84px;width:auto">
+    <div style="font-size:30px;color:var(--text2);margin-top:20px">On your phone, text</div>
+    <div class="digits">${[..."48217"].map((d) => `<div class="digit">${d}</div>`).join("")}</div>
+    <div style="font-size:44px;color:var(--text2)">to <span style="color:var(--text);font-weight:700">(604) 555-0142</span></div>
+    <div style="font-size:28px;line-height:1.45;color:var(--text2);max-width:900px">That connects this TV to your phone. After that, text Recco any show you hear about and it shows up here.</div>
+    <div class="waitpill"><div class="spin"></div>Waiting for your text…</div></div>`;
+const drawer = (r) => `<div class="scrim"></div><div class="drawer">
+    <div style="display:flex;gap:28px;align-items:flex-start">
+      <div class="dposter" style="background-image:url(${P(r.poster)})"></div>
+      <div style="display:flex;flex-direction:column;gap:14px;min-width:0;padding-top:6px">
+        <div style="font-size:46px;line-height:1.05;font-weight:700;letter-spacing:-.02em">${r.title}</div>
+        <div style="font-size:23px;color:var(--text2)">${r.type} · ${r.year} · ${r.runtime} · ${r.genre}</div>${ratings(r, true)}</div></div>
+    <div style="font-size:26px;line-height:1.5">${r.synopsis}</div>
+    <div style="height:1px;background:var(--border)"></div>
+    <div style="display:flex;gap:14px;align-items:flex-start">${avatar(r.from[0], 40, "margin-top:2px")}<div style="display:flex;flex-direction:column;gap:6px"><div style="font-size:19px;color:var(--text2)"><span style="font-weight:600;color:var(--textB)">${r.from}</span> · ${r.time}</div><div style="font-size:22px;line-height:1.35">${r.msg}</div></div></div>
+    <div style="margin-top:auto;display:flex;flex-direction:column;gap:18px">
+      <div class="alexa lit"><div class="mic">${ic.mic()}</div><div><div style="font-size:19px;color:var(--text2)">To watch, say</div><div style="font-size:25px;font-weight:500;line-height:1.2;white-space:nowrap">“Alexa, watch ${r.title}”</div></div></div>
+      <div style="display:flex;gap:12px"><div class="dbtn focused">${ic.checkCircle}<span>Mark Watched</span></div><div class="dbtn">${ic.trash}<span>Remove</span></div><div class="dbtn" style="flex:none;color:var(--text2)">${ic.back}<span>Back</span></div></div>
+    </div></div>`;
+const tv = (inner, { x, y, w }) => {
+  const s = w / 1920, h = Math.round(1080 * s);
+  return `<div class="tvwrap" style="left:${x}px;top:${y}px"><div class="tvglass" style="width:${w}px;height:${h}px"><div class="tvscale" style="transform:scale(${s})">${inner}</div></div><div class="tvfoot"></div></div>`;
+};
+
+// ------------------------------------------------------------ stage visuals (each fills a 482 × 274 box)
+const V = {};
+
+V[1] = tv(screen({ theme: "fallDay", hdr: false, body: codeBody }), { x: 0, y: 6, w: 400 })
+  + `<div class="smschip" style="right:0;top:118px">
+       <div class="to"><div class="phav"><img src="${LOGO}" alt=""></div><div><b>Recco</b>(604) 555-0142</div></div>
+       <div class="sbub big">48217</div><div class="deliv">Delivered</div></div>
+     <div class="okpill" style="left:16px;bottom:0"><span class="okdot">${ic.check}</span>Connected to the phone ending 0189</div>`;
+
+V[2] = `<div class="phone" style="right:4px;top:0;height:330px"><div class="phscr">
+      <div class="phstat"><span>9:04</span><span class="phisl"></span><span class="phbat"></span></div>
+      <div class="phhead"><div class="phav"><img src="${LOGO}" alt=""></div><div class="nm">Recco</div></div>
+      <div class="thread">
+        <div class="sbub">Dad says Desk Nine is brilliant</div>
+        <div class="linkb"><div class="lthumb"><div class="play"></div></div><div class="lmeta"><div class="lt">3 cozy comedies for a night in</div><div class="lu">tiktok.com · from Steph</div></div></div>
+        <div class="sbub">movies for a stormy night</div>
+        <div class="sbub">Floor Thirteen</div>
+      </div></div></div>`
+  + [["user", "A friend’s pick", "Name who said it", 58],
+     ["link", "A link", "TikTok, YouTube, articles", 120],
+     ["search", "A mood or a search", "Recco picks a few", 202],
+     ["film", "Just a title", "A note to yourself", 245]]
+    .map(([i, t, s], n) => `<div class="tag" data-for="${n}" style="left:0"><span class="ti">${ic[i]}</span><div>${t}<small>${s}</small></div></div>`).join("")
+  + [0, 1, 2, 3].map((i) => `<div class="lead" data-for="${i}" style="left:40px;width:168px"></div>`).join("");
+
+V[3] = `<div class="inb" style="left:0;top:22px">
+      <div class="sbub link">tiktok.com/@steph/74…</div>
+      <div class="sbub">Steph sent this</div></div>
+    <div class="flow" style="left:146px;top:48px;width:30px"></div>
+    <div class="orb" style="left:184px;top:0">${ic.spark.replace("<svg", '<svg style="margin-top:14px"')}<div>Recco agent</div></div>
+    <div class="flow" style="left:290px;top:48px;width:32px"></div>
+    <div class="outp" style="left:334px;top:15px">${RECS.stack.items.map((p) => `<div class="mp" style="background-image:url(${P(p)})"><i>${ic.check}</i></div>`).join("")}</div>
+    <div class="tools" style="left:0;right:0;justify-content:center;top:122px">${["read_post", "find_titles", "list_friends", "save_cards"].map((t) => `<span class="tool">${t}</span>`).join("")}</div>
+    <div class="verified" style="top:160px"><span class="okdot">${ic.check}</span>Every show is matched to a real title before it is saved</div>
+    <div class="facts">
+      <div class="fact"><div class="fk">Friend</div><div class="fv">Steph</div></div>
+      <div class="fact"><div class="fk">Shows</div><div class="fv">Room 104, Away Game, Couch Time</div></div>
+      <div class="fact"><div class="fk">Her words</div><div class="fv">“my three comfort shows”</div></div>
+    </div>`;
+
+// Stage 4: crop of the inbox's top row. Screen coords x 70–1264, y 142–608; scale to 482 wide.
+const CROP = { x: 70, y: 142, w: 1194, h: 466 }, cs = 482 / CROP.w;
+V[4] = `<div class="when" style="left:4px;top:0">Right away<span>a placeholder</span></div>
+    <div class="when" style="left:252px;top:0">Seconds later<span>the real card</span></div>
+    <div class="crop" style="top:24px;height:${Math.round(CROP.h * cs)}px">
+      <div class="tvscale" style="transform:scale(${cs}) translate(${-CROP.x}px,${-CROP.y}px)">${screen({ theme: "fallDay", body: grid([placeholder("Looking it up…"), card(RECS.koq), card(RECS.slow)]) })}</div></div>
+    <div class="arrowchip" style="left:${Math.round((667 - CROP.x) * cs) - 16}px;top:${24 + Math.round((375 - CROP.y) * cs) - 16}px">${ic.chev}</div>
+    <div class="steps">${["Reading your text…", "Looking it up…", "Finding the poster…"].map((s, i) => `<span class="s ${i === 1 ? "on" : ""}">${s}</span>`).join('<span class="sep">›</span>')}</div>`;
+
+V[5] = tv(screen({ theme: "fallNight", body: grid([card(RECS.stack, "focus"), card(RECS.koq), card(RECS.slow), card(RECS.bear), card(RECS.sev), card(RECS.past)]) }), { x: 42, y: 0, w: 384 })
+  + `<div class="sources">${[["J", "Jill"], ["M", "Mom"], ["S", "Steph"], ["✦", "Recco’s picks"], ["Me", "From me"]].map(([a, t]) => `<span class="src"><span class="a">${a}</span>${t}</span>`).join("")}</div>`;
+
+V[6] = tv(screen({ theme: "fallNight", body: grid([card(RECS.stack), card(RECS.koq, "focus"), card(RECS.slow), card(RECS.bear), card(RECS.sev), card(RECS.past)]) + drawer(RECS.koq) }), { x: 41, y: 0, w: 400 })
+  + `<div class="say" style="left:50%;transform:translateX(-50%);bottom:0"><span class="m">${ic.micS}</span><div><small>Then just say</small><b>“Alexa, watch Two-Car Garage”</b></div></div>`;
+
+// ------------------------------------------------------------ panels
+const STAGES = [
+  ["Sign up", "Connect your phone", "First launch shows a five-digit code. Text it to the Recco number and the TV is yours. No app, no password."],
+  ["Send texts", "Text it anything", "A friend’s pick, a link, a mood, or a half-remembered title. Free form, the way you’d text a friend."],
+  ["Recco agent", "The agent does the magic", "It reads the text or the post, works out the show, who sent it and what they said. Every title is checked, never invented."],
+  ["Loading in", "A card loads in", "A placeholder lands on the TV the moment you hit send, then turns into the finished card."],
+  ["Your library", "Build your recco library", "Every show, who recommended it and their words, waiting on the TV. One link with three shows becomes a stack."],
+  ["Watch it", "Ask Alexa to watch it", "Pick a card with the remote and say the line on screen. The phone can stay in the other room."],
+];
+const X = [64, 635, 1206], Y = [178, 672];
+let html = "";
+STAGES.forEach(([kick, title, sub], i) => {
+  const x = X[i % 3], y = Y[Math.floor(i / 3)];
+  html += `<div class="abs panel ${i === 2 ? "hero" : ""}" style="left:${x}px;top:${y}px">
+    <div class="phead"><div class="step"><div class="num">${i + 1}</div><div class="kick">${kick}</div></div>
+      <div class="ptitle">${title}</div><div class="psub">${sub}</div></div>
+    <div class="vis">${V[i + 1]}</div></div>`;
+  if (i % 3 !== 2) html += `<div class="abs next" style="left:${x + 530 + 5}px;top:${y + 219}px">${ic.chev}</div>`;
+});
+document.getElementById("panels").innerHTML = html;
+// Line each stage-2 label up with its message in the phone.
+const vis2 = document.querySelectorAll(".vis")[1], top0 = vis2.getBoundingClientRect().top;
+const msgs = vis2.querySelectorAll(".thread > *");
+vis2.querySelectorAll("[data-for]").forEach((el) => {
+  const r = msgs[+el.dataset.for].getBoundingClientRect(), mid = r.top + r.height / 2 - top0;
+  el.style.top = (el.classList.contains("tag") ? mid - el.offsetHeight / 2 : mid) + "px";
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,410 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>How Recco works</title>
+<!--
+  Source for docs/diagram/how-it-works.png (1800×1200, rendered at 2x). Re-render from this folder:
+  "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --headless=new --hide-scrollbars --allow-file-access-from-files \
+    --window-size=1800,1200 --force-device-scale-factor=2 --virtual-time-budget=4000 \
+    --screenshot="$PWD/how-it-works.png" "file://$PWD/how-it-works.html"
+-->
+<style>
+  @font-face { font-family: "Inter"; src: url(fonts/Inter.woff2) format("woff2"); font-weight: 100 900; }
+
+  :root {
+    --bg: #121918;
+    --surface: rgba(27, 37, 35, .86);
+    --surface-hi: rgba(33, 45, 42, .94);
+    --border: rgba(255, 247, 232, .10);
+    --border-hi: rgba(240, 182, 103, .32);
+    --icon-bg: rgba(240, 182, 103, .12);
+    --amber: #F0B667;
+    --orange: #D3632D;
+    --text: #FFF7E8;
+    --text2: #CFC9B4;
+    --muted: #8E978D;
+    --tint: linear-gradient(135deg, rgba(211, 99, 45, .55), rgba(240, 182, 103, .26));
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 1800px; height: 1200px; overflow: hidden; background: var(--bg); }
+  body { font-family: "Inter", -apple-system, "Helvetica Neue", sans-serif; color: var(--text); -webkit-font-smoothing: antialiased; }
+
+  #canvas { position: relative; width: 1800px; height: 1200px; overflow: hidden; }
+  .abs { position: absolute; }
+
+  /* Background: the app's fall-night room, pushed far back, with warm glows */
+  .bg-photo { inset: 0; background: url(../../apps/tv/assets/backgrounds/fallNight.jpg) center / cover; opacity: .26; filter: saturate(.85); }
+  .bg-wash { inset: 0; background:
+      radial-gradient(ellipse 38% 34% at 86% 70%, rgba(211, 99, 45, .20), transparent 70%),
+      radial-gradient(ellipse 30% 30% at 10% 40%, rgba(240, 182, 103, .10), transparent 70%),
+      linear-gradient(180deg, rgba(18, 25, 24, .78) 0%, rgba(18, 25, 24, .90) 30%, rgba(18, 25, 24, .93) 100%); }
+
+  /* Header */
+  .logo { left: 64px; top: 46px; height: 80px; }
+  .head-rule { left: 318px; top: 56px; width: 1px; height: 64px; background: rgba(255, 247, 232, .18); }
+  .headline { left: 348px; top: 50px; font-size: 38px; font-weight: 700; letter-spacing: -.02em; line-height: 1.1; }
+  .headline em { font-style: normal; color: var(--amber); }
+  .subhead { left: 348px; top: 101px; font-size: 19px; color: var(--text2); letter-spacing: -.003em; }
+  .badges { right: 64px; top: 52px; display: flex; flex-direction: column; align-items: flex-end; gap: 10px; }
+  .badge { font-size: 12.5px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--text2);
+           padding: 8px 14px; border: 1px solid var(--border); border-radius: 999px; background: rgba(255, 247, 232, .04); }
+  .badge b { color: var(--amber); font-weight: 700; }
+
+  /* Stage headers */
+  .stage { display: flex; align-items: center; gap: 12px; }
+  .num { width: 34px; height: 34px; border-radius: 50%; background: var(--amber); color: #2A1A10;
+         font-size: 18px; font-weight: 800; display: grid; place-items: center; flex: none; }
+  .stage-title { font-size: 26px; font-weight: 700; letter-spacing: -.015em; }
+  .stage-sub { font-size: 16px; color: var(--text2); }
+
+  /* AWS panel */
+  .panel { left: 384px; top: 188px; width: 932px; height: 700px; border-radius: 28px;
+           background: rgba(22, 31, 29, .80); border: 1px solid var(--border);
+           box-shadow: 0 40px 120px rgba(0, 0, 0, .45), inset 0 1px 0 rgba(255, 247, 232, .05); }
+  .aws-tag { right: 512px; top: 214px; font-size: 13px; font-weight: 600; color: var(--amber); letter-spacing: .04em;
+             padding: 8px 14px; border-radius: 999px; border: 1px solid var(--border-hi); background: rgba(240, 182, 103, .08); }
+
+  /* Nodes */
+  .node { border-radius: 18px; background: var(--surface); border: 1px solid var(--border);
+          box-shadow: 0 16px 40px rgba(0, 0, 0, .35); padding: 16px; }
+  .node .row { display: flex; align-items: center; gap: 10px; }
+  .ic { width: 36px; height: 36px; border-radius: 10px; background: var(--icon-bg); display: grid; place-items: center; flex: none; }
+  .ic svg { width: 20px; height: 20px; stroke: var(--amber); fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .svc { font-size: 17px; font-weight: 700; letter-spacing: -.01em; line-height: 1.15; }
+  .role { margin-top: 10px; font-size: 13px; font-weight: 700; color: var(--amber); letter-spacing: .01em; }
+  .desc { margin-top: 3px; font-size: 13.5px; line-height: 1.38; color: var(--text2); }
+
+  .lane1 { top: 304px; width: 198px; height: 134px; }
+  .wide { width: 424px; height: 130px; display: flex; gap: 14px; align-items: flex-start; padding: 18px 20px; }
+  .wide .ic { width: 44px; height: 44px; border-radius: 12px; }
+  .wide .ic svg { width: 24px; height: 24px; }
+  .wide .svc { font-size: 18px; }
+  .wide .desc { margin-top: 6px; font-size: 14px; }
+
+  /* Agent node */
+  .agent { left: 412px; top: 478px; width: 650px; height: 212px; padding: 18px 20px;
+           background: linear-gradient(135deg, rgba(211, 99, 45, .20), rgba(33, 45, 42, .94) 55%);
+           border: 1px solid var(--border-hi); box-shadow: 0 24px 60px rgba(0, 0, 0, .45), 0 0 0 6px rgba(240, 182, 103, .05); }
+  .agent .ic { width: 44px; height: 44px; border-radius: 12px; background: var(--amber); }
+  .agent .ic svg { width: 24px; height: 24px; stroke: #2A1A10; fill: rgba(42, 26, 16, .15); }
+  .agent .svc { font-size: 19px; }
+  .agent .cols { display: flex; gap: 20px; margin-top: 12px; }
+  .agent .left { width: 392px; }
+  .agent .right { flex: 1; border-left: 1px solid var(--border); padding-left: 18px; }
+  .tools { display: flex; gap: 5px; margin-top: 10px; }
+  .tool { font-family: "SF Mono", ui-monospace, Menlo, monospace; font-size: 11.5px; color: var(--text);
+          padding: 4px 7px; border-radius: 7px; background: rgba(255, 247, 232, .07); border: 1px solid var(--border); }
+  .eyebrow { font-size: 11.5px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--amber); }
+  .calls { margin-top: 8px; display: flex; flex-direction: column; gap: 6px; font-size: 12.5px; white-space: nowrap; color: var(--text2); }
+  .calls b { color: var(--text); font-weight: 600; }
+  .guard { margin-top: 12px; display: flex; align-items: center; gap: 8px; font-size: 13.5px; color: var(--text); }
+  .guard svg { width: 16px; height: 16px; stroke: var(--amber); fill: none; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+
+  /* Phone */
+  .phone { left: 74px; top: 300px; width: 240px; height: 500px; border-radius: 38px; background: #0B100F;
+           border: 1px solid rgba(255, 247, 232, .16); box-shadow: 0 40px 90px rgba(0, 0, 0, .55); padding: 10px; }
+  .screen { width: 100%; height: 100%; border-radius: 30px; background: linear-gradient(180deg, #18211F, #121917); overflow: hidden; position: relative; }
+  .notch { position: absolute; left: 50%; top: 9px; transform: translateX(-50%); width: 72px; height: 20px; border-radius: 12px; background: #0B100F; }
+  .contact { position: absolute; top: 36px; left: 0; right: 0; text-align: center; }
+  .avatar { width: 34px; height: 34px; border-radius: 50%; margin: 0 auto; background: var(--orange); display: grid; place-items: center;
+            font-size: 17px; font-weight: 800; color: var(--text); }
+  .contact .name { margin-top: 5px; font-size: 13px; font-weight: 600; }
+  .contact .num-line { font-size: 11px; color: var(--muted); margin-top: 1px; }
+  .thread { position: absolute; top: 126px; left: 12px; right: 12px; display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+  .bubble { max-width: 172px; font-size: 13px; line-height: 1.32; padding: 8px 11px; border-radius: 16px 16px 4px 16px;
+            background: var(--tint); border: 1px solid rgba(240, 182, 103, .18); color: var(--text); }
+  .bubble.link { overflow-wrap: anywhere; color: #F7D9AE; text-decoration: underline; text-decoration-color: rgba(247, 217, 174, .5); text-underline-offset: 2px; }
+  .bubble.gap { margin-top: 4px; }
+  .delivered { font-size: 10px; color: var(--muted); margin-top: -2px; }
+  .compose { position: absolute; left: 12px; right: 12px; bottom: 14px; height: 32px; border-radius: 16px; border: 1px solid rgba(255, 247, 232, .14);
+             font-size: 12px; color: var(--muted); padding: 8px 12px; }
+  .caption { font-size: 14px; color: var(--text2); line-height: 1.4; }
+
+  /* Timeline */
+  .timeline { left: 1372px; top: 300px; width: 364px; height: 352px; padding: 22px 24px; }
+  .tl { position: relative; margin-top: 16px; display: flex; flex-direction: column; gap: 14px; }
+  .tl::before { content: ""; position: absolute; left: 5px; top: 10px; bottom: 30px; width: 2px; background: linear-gradient(180deg, var(--amber), rgba(240, 182, 103, .25)); }
+  .tl-row { display: flex; gap: 14px; position: relative; }
+  .dot { width: 12px; height: 12px; border-radius: 50%; background: var(--amber); margin-top: 6px; flex: none; box-shadow: 0 0 0 4px rgba(240, 182, 103, .18); }
+  .t { width: 62px; flex: none; font-size: 21px; font-weight: 800; color: var(--amber); letter-spacing: -.02em; }
+  .tl-text b { display: block; font-size: 15.5px; font-weight: 600; color: var(--text); }
+  .tl-text span { display: block; font-size: 13px; color: var(--text2); margin-top: 2px; }
+  .stats { position: absolute; left: 24px; right: 24px; bottom: 22px; display: flex; gap: 12px; padding-top: 16px; border-top: 1px solid var(--border); }
+  .stat { flex: 1; }
+  .stat b { display: block; font-size: 21px; font-weight: 800; letter-spacing: -.02em; color: var(--text); }
+  .stat span { display: block; font-size: 12.5px; color: var(--text2); margin-top: 2px; line-height: 1.3; }
+  .tl-text code { font-family: "SF Mono", ui-monospace, Menlo, monospace; font-size: 12px; color: var(--text); }
+
+  /* TV */
+  .tv { left: 1372px; top: 692px; width: 364px; height: 205px; border-radius: 12px; background: #080B0B; padding: 7px;
+        border: 1px solid rgba(255, 247, 232, .14); box-shadow: 0 40px 90px rgba(0, 0, 0, .6), 0 0 80px rgba(211, 99, 45, .18); }
+  .tv-stand { left: 1514px; top: 897px; width: 80px; height: 10px; border-radius: 0 0 6px 6px; background: #0B100F; border: 1px solid rgba(255, 247, 232, .1); border-top: none; }
+  .tv-screen { position: relative; width: 100%; height: 100%; border-radius: 6px; overflow: hidden;
+               background: #1D2929 url(../../apps/tv/assets/backgrounds/fallNight.jpg) center / cover; }
+  .tv-screen::before { content: ""; position: absolute; inset: 0; background: radial-gradient(ellipse 90% 90% at 50% 40%, transparent 30%, #1D2929 100%); }
+  .tv-screen > * { position: absolute; }
+  .m-logo { left: 12px; top: 8px; height: 15px; }
+  .m-tabs { left: 50%; top: 8px; transform: translateX(-50%); display: flex; padding: 2px; border-radius: 99px; background: rgba(18, 28, 30, .8); border: 1px solid rgba(255, 255, 255, .1); }
+  .m-tabs span { font-size: 6.5px; font-weight: 600; padding: 3px 8px; border-radius: 99px; color: #C4CAC0; }
+  .m-tabs span.on { background: #E28A3B; color: #1D1410; box-shadow: 0 0 0 1px #E28A3B; }
+  .m-gear { right: 12px; top: 8px; width: 15px; height: 15px; border-radius: 50%; background: rgba(18, 28, 30, .8); border: 1px solid rgba(255, 255, 255, .1); }
+  .m-card { left: 26px; top: 34px; width: 298px; height: 132px; border-radius: 10px; background: rgba(18, 28, 30, .78);
+            border: 1px solid rgba(255, 255, 255, .09); padding: 10px; display: flex; gap: 11px; }
+  .m-title-card { width: 74px; height: 111px; border-radius: 6px; flex: none; padding: 8px 7px; display: flex; flex-direction: column; justify-content: flex-end;
+                  background: linear-gradient(160deg, #C8572F, #7A3A22 70%, #3B2A22); box-shadow: 0 6px 14px rgba(0, 0, 0, .45); }
+  .m-title-card b { font-size: 10.5px; line-height: 1.08; font-weight: 800; letter-spacing: -.01em; }
+  .m-title-card i { font-style: normal; font-size: 5.5px; color: rgba(255, 246, 232, .7); margin-top: 3px; letter-spacing: .08em; text-transform: uppercase; }
+  .m-body { flex: 1; display: flex; flex-direction: column; }
+  .m-h { font-size: 15px; font-weight: 700; letter-spacing: -.02em; line-height: 1.05; }
+  .m-meta { font-size: 6.5px; color: #C4CAC0; margin-top: 3px; }
+  .m-from { display: flex; align-items: center; gap: 4px; margin-top: 8px; font-size: 6.5px; color: #C4CAC0; }
+  .m-from i { font-style: normal; width: 11px; height: 11px; border-radius: 50%; background: rgba(255, 255, 255, .14); display: grid; place-items: center; font-size: 5.5px; font-weight: 700; color: #FFF6E8; }
+  .m-from b { color: #FFF6E8; font-weight: 600; }
+  .m-bubble { align-self: flex-start; margin-top: 4px; font-size: 8.5px; padding: 4px 7px; border-radius: 8px 8px 8px 2px;
+              background: linear-gradient(135deg, rgba(200, 87, 47, .55), rgba(226, 138, 59, .3)); }
+  .m-alexa { margin-top: auto; display: flex; align-items: center; gap: 5px; padding: 4px 7px; border-radius: 6px; background: rgba(255, 255, 255, .07); align-self: flex-start; }
+  .m-mic { width: 13px; height: 13px; border-radius: 50%; background: rgba(255, 255, 255, .12); display: grid; place-items: center; }
+  .m-mic svg { width: 7px; height: 7px; stroke: #FFF6E8; fill: none; stroke-width: 2.4; stroke-linecap: round; }
+  .m-alexa small { display: block; font-size: 5px; color: #C4CAC0; }
+  .m-alexa span { display: block; font-size: 7.5px; font-weight: 500; }
+  .m-dots { left: 50%; top: 174px; transform: translateX(-50%); display: flex; gap: 4px; }
+  .m-dots i { width: 4px; height: 4px; border-radius: 50%; background: rgba(255, 255, 255, .6); }
+  .m-dots i.on { background: #E28A3B; }
+
+  .say { left: 1372px; top: 926px; width: 364px; height: 58px; border-radius: 999px; display: flex; align-items: center; gap: 12px; padding: 0 18px 0 10px;
+         background: var(--surface-hi); border: 1px solid var(--border-hi); }
+  .say .mic { width: 38px; height: 38px; border-radius: 50%; background: var(--amber); display: grid; place-items: center; flex: none; }
+  .say .mic svg { width: 18px; height: 18px; stroke: #2A1A10; fill: none; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+  .say small { display: block; font-size: 11.5px; color: var(--text2); }
+  .say span { display: block; font-size: 16px; font-weight: 600; letter-spacing: -.01em; }
+
+  /* Footer */
+  .footer { left: 64px; top: 1016px; width: 1672px; height: 136px; border-radius: 22px; background: rgba(255, 247, 232, .035);
+            border: 1px solid var(--border); padding: 0 28px; display: flex; align-items: center; gap: 32px; }
+  .foot-title { width: 196px; flex: none; }
+  .foot-title b { display: block; font-size: 22px; font-weight: 700; letter-spacing: -.015em; margin-top: 6px; }
+  .foot-rows { display: flex; flex-direction: column; gap: 12px; flex: 1; }
+  .foot-row { display: flex; align-items: center; gap: 8px; }
+  .foot-label { width: 78px; flex: none; font-size: 13px; font-weight: 700; color: var(--text2); letter-spacing: .1em; text-transform: uppercase; }
+  .chip { font-size: 14.5px; font-weight: 600; padding: 8px 13px; border-radius: 999px; background: rgba(255, 247, 232, .06); border: 1px solid var(--border); white-space: nowrap; }
+  .chip.key { background: rgba(240, 182, 103, .14); border-color: var(--border-hi); color: #FBE3BF; }
+
+  /* Connectors */
+  svg.wires { position: absolute; inset: 0; width: 1800px; height: 1200px; pointer-events: none; }
+  .wire { stroke: var(--amber); stroke-width: 2.5; fill: none; stroke-linecap: round; }
+  .wire-label { font-size: 12px; font-weight: 600; fill: var(--text2); letter-spacing: .02em; }
+  .wire-label.mono { font-family: "SF Mono", ui-monospace, Menlo, monospace; font-weight: 500; fill: var(--text); }
+</style>
+</head>
+<body>
+<div id="canvas">
+  <div class="abs bg-photo"></div>
+  <div class="abs bg-wash"></div>
+
+  <!-- Header -->
+  <img class="abs logo" src="../../apps/tv/assets/recco-logo.png" alt="Recco">
+  <div class="abs head-rule"></div>
+  <div class="abs headline">Text a show. It’s <em>waiting on your TV.</em></div>
+  <div class="abs subhead">An inbox of things to watch on Fire TV: who recommended each show, and what they said.</div>
+  <div class="abs badges">
+    <div class="badge"><b>Amazon Developer Hackathon</b> · Fire TV track</div>
+    <div class="badge">AWS Builder mini challenge</div>
+  </div>
+
+  <!-- Stage 1 -->
+  <div class="abs stage" style="left:64px; top:212px"><div class="num">1</div><div class="stage-title">Text it</div></div>
+  <div class="abs stage-sub" style="left:64px; top:258px">Any phone, one number. No app.</div>
+
+  <div class="abs phone">
+    <div class="screen">
+      <div class="notch"></div>
+      <div class="contact">
+        <div class="avatar">R</div>
+        <div class="name">Recco</div>
+        <div class="num-line">(604) 555-0142</div>
+      </div>
+      <div class="thread">
+        <div class="bubble">King of Queens - Jordan said it was funny</div>
+        <div class="bubble link gap">tiktok.com/t/ZT8kR2q/</div>
+        <div class="bubble">Steph sent this</div>
+        <div class="bubble gap">movies for a stormy night</div>
+        <div class="bubble gap">Severance</div>
+        <div class="delivered">Delivered</div>
+      </div>
+      <div class="compose">Text Message</div>
+    </div>
+  </div>
+  <div class="abs caption" style="left:64px; top:818px; width:260px; text-align:center">A show, a friend’s pick, a link,<br>or a mood. Recco never texts back.</div>
+
+  <!-- Stage 2: AWS -->
+  <div class="abs panel"></div>
+  <div class="abs stage" style="left:412px; top:212px"><div class="num">2</div><div class="stage-title">Recco reads it</div></div>
+  <div class="abs stage-sub" style="left:412px; top:258px">A serverless AWS pipeline hands each text to an AI agent on Bedrock AgentCore.</div>
+  <div class="abs aws-tag">AWS · us-east-2 · all in CDK</div>
+
+  <div class="abs node lane1" style="left:412px">
+    <div class="row"><div class="ic"><svg viewBox="0 0 24 24"><path d="M6 4h3.2l8.8 16M12.6 10.6 7 20"/></svg></div><div class="svc">AWS Lambda</div></div>
+    <div class="role">Inbox API</div>
+    <div class="desc">Function URL. Checks each text’s signature.</div>
+  </div>
+  <div class="abs node lane1" style="left:638px">
+    <div class="row"><div class="ic"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="2"/><path d="M16.2 7.8a6 6 0 0 1 0 8.5M7.8 16.2a6 6 0 0 1 0-8.5M19 5a10 10 0 0 1 0 14M5 19A10 10 0 0 1 5 5"/></svg></div><div class="svc">Amazon SNS</div></div>
+    <div class="role">Inbound texts</div>
+    <div class="desc">Same shape as AWS End User Messaging.</div>
+  </div>
+  <div class="abs node lane1" style="left:864px">
+    <div class="row"><div class="ic"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="4.5" rx="1.5"/><rect x="3" y="10" width="18" height="4.5" rx="1.5"/><rect x="3" y="16" width="18" height="4.5" rx="1.5"/></svg></div><div class="svc">Amazon SQS</div></div>
+    <div class="role">Text queue</div>
+    <div class="desc">Retries, then a dead-letter queue.</div>
+  </div>
+  <div class="abs node lane1" style="left:1090px">
+    <div class="row"><div class="ic"><svg viewBox="0 0 24 24"><path d="M6 4h3.2l8.8 16M12.6 10.6 7 20"/></svg></div><div class="svc">AWS Lambda</div></div>
+    <div class="role">Intake</div>
+    <div class="desc">Pairs a TV by code, or saves the text.</div>
+  </div>
+
+  <div class="abs node agent">
+    <div class="row">
+      <div class="ic"><svg viewBox="0 0 24 24"><path d="M12 3l1.9 5.8L20 11l-6.1 2.2L12 19l-1.9-5.8L4 11l6.1-2.2z"/><path d="M19 3v4M17 5h4"/></svg></div>
+      <div>
+        <div class="svc">Amazon Bedrock AgentCore Runtime</div>
+        <div class="role" style="margin-top:2px">The Recco agent</div>
+      </div>
+    </div>
+    <div class="cols">
+      <div class="left">
+        <div class="desc" style="margin-top:0">Reads the text and any link, finds the friend and their words, and looks up every title.</div>
+        <div class="tools"><span class="tool">read_post</span><span class="tool">find_titles</span><span class="tool">list_friends</span><span class="tool">save_cards</span></div>
+        <div class="guard"><svg viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg>Never invents a show. Every title is checked.</div>
+      </div>
+      <div class="right">
+        <div class="eyebrow">Calls out to</div>
+        <div class="calls">
+          <div><b>Claude Haiku 5.5</b> · AI Gateway</div>
+          <div><b>OMDb</b> · title lookup</div>
+          <div><b>ScrapeCreators</b> · social posts</div>
+          <div><b>Jina Reader</b> · other links</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="abs node lane1" style="left:1090px; top:517px">
+    <div class="row"><div class="ic"><svg viewBox="0 0 24 24"><path d="M6 4h3.2l8.8 16M12.6 10.6 7 20"/></svg></div><div class="svc">AWS Lambda</div></div>
+    <div class="role">Agent worker</div>
+    <div class="desc">Starts the agent without blocking intake.</div>
+  </div>
+
+  <div class="abs node wide" style="left:412px; top:730px">
+    <div class="ic"><svg viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5"/><path d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></svg></div>
+    <div>
+      <div class="svc">Amazon DynamoDB</div>
+      <div class="role" style="margin-top:4px">One table, the whole inbox</div>
+      <div class="desc">Friends, cards and texts per household. Phone numbers kept only as salted hashes.</div>
+    </div>
+  </div>
+  <div class="abs node wide" style="left:864px; top:730px">
+    <div class="ic"><svg viewBox="0 0 24 24"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg></div>
+    <div>
+      <div class="svc">AWS AppSync Events</div>
+      <div class="role" style="margin-top:4px">Live updates</div>
+      <div class="desc">Pushes each new card to the TV over a WebSocket, one channel per household.</div>
+    </div>
+  </div>
+
+  <!-- Stage 3 -->
+  <div class="abs stage" style="left:1372px; top:212px"><div class="num">3</div><div class="stage-title">Watch it</div></div>
+  <div class="abs stage-sub" style="left:1372px; top:258px">On Fire TV, by remote and voice.</div>
+
+  <div class="abs node timeline">
+    <div class="eyebrow">From send to screen · measured</div>
+    <div class="tl">
+      <div class="tl-row"><div class="dot"></div><div class="t">0 s</div><div class="tl-text"><b>You hit send</b><span>From any phone</span></div></div>
+      <div class="tl-row"><div class="dot"></div><div class="t">0.8 s</div><div class="tl-text"><b>A placeholder tile appears</b><span><code>card.pending</code> over AppSync</span></div></div>
+      <div class="tl-row"><div class="dot"></div><div class="t">~5 s</div><div class="tl-text"><b>The finished card</b><span>The show, who sent it, their words</span></div></div>
+      <div class="tl-row"><div class="dot"></div><div class="t">~10 s</div><div class="tl-text"><b>Every show in a link</b><span>One TikTok becomes a stack</span></div></div>
+    </div>
+    <div class="stats">
+      <div class="stat"><b>108 ms</b><span>Inbox API, p95</span></div>
+      <div class="stat"><b>25 / 25</b><span>Agent test set passed</span></div>
+    </div>
+  </div>
+
+  <div class="abs tv">
+    <div class="tv-screen">
+      <img class="m-logo" src="../../apps/tv/assets/recco-logo.png" alt="">
+      <div class="m-tabs"><span class="on">Featured</span><span>Inbox</span></div>
+      <div class="m-gear"></div>
+      <div class="m-card">
+        <div class="m-title-card"><b>The King of Queens</b><i>Series</i></div>
+        <div class="m-body">
+          <div class="m-h">The King of Queens</div>
+          <div class="m-meta">Series · 1998–2007 · Comedy</div>
+          <div class="m-from"><i>J</i><b>Jordan</b> · now</div>
+          <div class="m-bubble">said it was funny</div>
+          <div class="m-alexa">
+            <div class="m-mic"><svg viewBox="0 0 24 24"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M19 10v2a7 7 0 0 1-14 0v-2M12 19v3"/></svg></div>
+            <div><small>To watch, say</small><span>“Alexa, watch The King of Queens”</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="m-dots"><i class="on"></i><i></i><i></i><i></i></div>
+    </div>
+  </div>
+  <div class="abs tv-stand"></div>
+
+  <div class="abs say">
+    <div class="mic"><svg viewBox="0 0 24 24"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M19 10v2a7 7 0 0 1-14 0v-2M12 19v3"/></svg></div>
+    <div><small>Then just say</small><span>“Alexa, watch The King of Queens”</span></div>
+  </div>
+
+  <!-- Footer: the Amazon tech -->
+  <div class="abs footer">
+    <div class="foot-title"><div class="eyebrow">The tech</div><b>Built on Amazon</b></div>
+    <div class="foot-rows">
+      <div class="foot-row">
+        <div class="foot-label">Fire TV</div>
+        <span class="chip key">Vega OS</span><span class="chip key">React Native for Vega</span><span class="chip">Vega W3C Media</span><span class="chip">React Navigation for Vega</span><span class="chip">Vega SDK &amp; Virtual Device</span><span class="chip key">Alexa voice hand-off</span>
+      </div>
+      <div class="foot-row">
+        <div class="foot-label">AWS</div>
+        <span class="chip key">Bedrock AgentCore Runtime</span><span class="chip key">Lambda</span><span class="chip">SNS</span><span class="chip">SQS</span><span class="chip key">DynamoDB</span><span class="chip key">AppSync Events</span><span class="chip">Secrets Manager</span><span class="chip">S3</span><span class="chip">IAM</span><span class="chip">CloudWatch</span><span class="chip key">CDK</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Connectors (drawn last so they sit on top of the panel edge) -->
+  <svg class="wires" viewBox="0 0 1800 1200">
+    <defs>
+      <marker id="head" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5.5" markerHeight="5.5" orient="auto-start-reverse">
+        <path d="M0 0 10 5 0 10z" fill="#F0B667"/>
+      </marker>
+    </defs>
+    <!-- phone → Inbox API -->
+    <path class="wire" d="M318 371 H404" marker-end="url(#head)"/>
+    <text class="wire-label" x="361" y="360" text-anchor="middle">webhook</text>
+    <!-- lane 1 -->
+    <path class="wire" d="M612 371 H632" marker-end="url(#head)"/>
+    <path class="wire" d="M838 371 H858" marker-end="url(#head)"/>
+    <path class="wire" d="M1064 371 H1084" marker-end="url(#head)"/>
+    <!-- intake → agent worker -->
+    <path class="wire" d="M1189 440 V511" marker-end="url(#head)"/>
+    <text class="wire-label" x="1178" y="484" text-anchor="end">async</text>
+    <!-- agent worker → agent -->
+    <path class="wire" d="M1088 584 H1068" marker-end="url(#head)"/>
+    <!-- agent → DynamoDB / AppSync -->
+    <path class="wire" d="M624 692 V724" marker-end="url(#head)"/>
+    <text class="wire-label mono" x="636" y="713">save_cards</text>
+    <path class="wire" d="M963 692 V724" marker-end="url(#head)"/>
+    <text class="wire-label mono" x="975" y="713">card.ready</text>
+    <!-- AppSync → TV -->
+    <path class="wire" d="M1290 795 H1364" marker-end="url(#head)"/>
+    <text class="wire-label" x="1330" y="784" text-anchor="middle">live</text>
+    <circle cx="348" cy="371" r="4" fill="#FFF7E8"/>
+    <circle cx="1318" cy="795" r="4" fill="#FFF7E8"/>
+  </svg>
+</div>
+</body>
+</html>
