@@ -61,27 +61,27 @@
 ### Milestone 5: make it feel finished
 
 - [ ] ~~5.1~~ (cut 2026-10-13: the new design has no thumbs or friend rows; see decisions.md) Add the friend track record to each friend row and to card detail. (R4.4)
-- [ ] 5.2 Apply the design handoff in `docs/design/`: themes, Featured and Inbox, the detail drawer, settings, stacks, onboarding, and ratings from OMDb. (R7.1, R7.2, R7.4 to R7.8, R7.11 to R7.13, R9.1)
-- [ ] 5.3 Handle the failure cases on screen: failed card, expired code, no network. (R3.8, R7.9)
-- [ ] 5.4 If a Fire TV Stick is available, install the app on it and repeat Checkpoint 2 and Checkpoint 4 there. Test the Alexa line for six services.
-- [ ] 5.5 Add retry for failed messages and the duplicate-message guard. (R2.3, R3.8)
-- [ ] 5.6 In `packages/core`, add `isForgetCommand` and `planMove` with tests. In `packages/store`, add `phoneHash` on the household, household TV items, `listHouseholdDevices`, `moveDevice`, `rotateChannel` and `deleteHousehold`, in both stores, with contract tests that a deleted household leaves no item behind. (R1.7 to R1.9, R11.1)
-- [ ] 5.7 Wire them in: `DELETE /household`; "FORGET ME" and moving a TV in intake; the `save_cards` and agent-worker guards; the `household.deleted` and `channel.changed` events; `otherTvs` in the inbox. (R1.7 to R1.9, R11.2, R11.4 to R11.8)
-- [ ] 5.8 On the TV: "Forget me" with its confirm step, the "Pair another phone" warning, handling both new events, and dropping the saved inbox on a household change. (R1.10, R1.11, R11.3, R11.5, R11.6)
-- [ ] 5.9 Take household data out of logs (agent-worker logs the agent's reply, the agent logs its report), cut the dead-letter queue to 4 days, and backfill `phoneHash` and household TV items for households already in the deployed table, or reset it. (R11.9)
+- [x] 5.2 Apply the design handoff in `docs/design/`: themes, Featured and Inbox, the detail drawer, settings, stacks, onboarding, and ratings from OMDb. (R7.1, R7.2, R7.4 to R7.8, R7.11 to R7.13, R9.1)
+- [x] 5.3 Handle the failure cases on screen: failed card, expired code, no network. (R3.8, R7.9)
+- [ ] 5.4 (open at submission, 2026-10-14: no Fire TV Stick; tested on the Vega Virtual Device only) If a Fire TV Stick is available, install the app on it and repeat Checkpoint 2 and Checkpoint 4 there. Test the Alexa line for six services.
+- [ ] 5.5 (open at submission: the duplicate-message guard is in, retry for failed messages is not) Add retry for failed messages and the duplicate-message guard. (R2.3, R3.8)
+- [ ] 5.6 (open at submission; see README, Privacy) In `packages/core`, add `isForgetCommand` and `planMove` with tests. In `packages/store`, add `phoneHash` on the household, household TV items, `listHouseholdDevices`, `moveDevice`, `rotateChannel` and `deleteHousehold`, in both stores, with contract tests that a deleted household leaves no item behind. (R1.7 to R1.9, R11.1)
+- [ ] 5.7 (open at submission) Wire them in: `DELETE /household`; "FORGET ME" and moving a TV in intake; the `save_cards` and agent-worker guards; the `household.deleted` and `channel.changed` events; `otherTvs` in the inbox. (R1.7 to R1.9, R11.2, R11.4 to R11.8)
+- [ ] 5.8 (open at submission) On the TV: "Forget me" with its confirm step, the "Pair another phone" warning, handling both new events, and dropping the saved inbox on a household change. (R1.10, R1.11, R11.3, R11.5, R11.6)
+- [ ] 5.9 (open at submission) Take household data out of logs (agent-worker logs the agent's reply, the agent logs its report), cut the dead-letter queue to 4 days, and backfill `phoneHash` and household TV items for households already in the deployed table, or reset it. (R11.9)
 
 **CHECKPOINT 5.** Full run-through: pair, text, link, browse, say the line, mark watched. Then pair a second TV, move the first one to another phone and check the list stays on the second TV; forget the household from the TV; pair again and forget it by text.
 
 ### Milestone 6: documents, video, submit
 
-- [ ] 6.1 Write the README: what it is, local run, virtual device run, AWS deploy, teardown, and where data can outlive a delete. (R10.4, R11.10)
-- [ ] 6.2 Confirm a fresh clone runs with no AWS account. (R10.1 to R10.3)
-- [ ] 6.3 Add `pnpm infra:destroy`. (R10.5)
-- [ ] 6.4 Complete friction-log.md, product-feedback.md, and aws-integrations.md.
-- [ ] 6.5 Write `docs/demo-script.md` from the outline below.
-- [ ] 6.6 Record the video. Under three minutes.
-- [ ] 6.7 Submit on Devpost: description, repo, video, product feedback, friction log, Fire TV track, AWS Builder mini challenge.
-- [ ] 6.8 If the repo is private, add the reviewer accounts listed on the hackathon page as collaborators when submitting.
+- [x] 6.1 Write the README: what it is, local run, virtual device run, AWS deploy, teardown, and where data can outlive a delete. (R10.4, R11.10)
+- [x] 6.2 (2026-10-14: a fresh clone installs and passes `pnpm test` with no AWS credentials) Confirm a fresh clone runs with no AWS account. (R10.1 to R10.3)
+- [x] 6.3 Add `pnpm infra:destroy`. (R10.5)
+- [x] 6.4 Complete friction-log.md, product-feedback.md, and aws-integrations.md.
+- [x] 6.5 Write `docs/demo-script.md` from the outline below.
+- [x] 6.6 Record the video. Under three minutes.
+- [x] 6.7 Submit on Devpost: description, repo, video, product feedback, friction log, Fire TV track, AWS Builder mini challenge.
+- [ ] ~~6.8~~ (not needed: the repo is public) If the repo is private, add the reviewer accounts listed on the hackathon page as collaborators when submitting.
 
 **CHECKPOINT 6.** I watch the video and read the submission before it goes in.
 

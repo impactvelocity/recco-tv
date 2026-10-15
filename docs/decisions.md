@@ -245,3 +245,9 @@ The TV app now follows the handoff in `docs/design/` (README plus the three HTML
 - **Mock content only.** The app's screenshots show studio posters and a streaming service's logo, so the page uses the film's original posters and plain rating marks instead (no third-party logos).
 - **"Forget me" is not on the page** while tasks 5.6–5.9 are open.
 - **Second pass, same day:** a lighter, simpler page after runway.com. It follows the film's story in five chapters (TV time, connect, text it, your inbox, ask Alexa) plus "Why a text?". The agent, measured numbers, seasons, privacy and AWS sections were cut from the page; the diagrams stay linked from the footer. The film plays from YouTube, loaded only on click.
+
+## 2026-10-14 · Submitted with tasks 5.4 to 5.9 open
+
+- **Against the plan:** tasks.md lists "forget me with clean TV moves" under "Never cut" (nothing goes public without them). The submission went in without them. The rules and design are written; the code is not. The README's Privacy section says so.
+- **Also open:** 5.4 (no Fire TV Stick, so the app was tested on the Vega Virtual Device only) and the retry half of 5.5 (the duplicate-message guard is in). Checkpoint 5 was not run.
+- **Repo:** `brag-output/work/` (video working files, about 28 MB) is no longer tracked. The files stay on disk, and the deliverables in `brag-output/` stay in the repo.

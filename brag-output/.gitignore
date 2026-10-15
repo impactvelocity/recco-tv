@@ -1,34 +1,10 @@
-# Rendered video and audio (regenerate with the scripts in work/)
+# Rendered video and audio
 *.mp4
 *.wav
 *.webm
 *.m4a
 *.mp3
 
-# Working files: renders, stills, logs, scratch previews
-work/render.mp4
-work/render.log
-work/snaps*/
-work/vf/
-work/*.png
-work/*.jpg
-work/*.err
-work/build.before-*.mjs
-
-# HyperFrames project: generated page, caches and copied media
-work/composition/index.html
-work/composition/.hyperframes/
-work/composition/.thumbnails/
-work/composition/node_modules/
-work/composition/renders/
-work/composition/assets/bg/*.mp4
-work/composition/assets/bg/*.jpg
-work/composition/assets/bg/*.png
-work/composition/assets/posters/
-work/composition/assets/fonts/
-work/composition/assets/audio/
-work/composition/work/
-
-# Sound scratch
-work/sound/*.wav
-work/sound/music/
+# Working files for the video (frames, captures, patch scripts, the HyperFrames project).
+# Kept on disk, not in the repo. The deliverables are the files in this folder.
+work/
