@@ -3,7 +3,17 @@
 
 export const REPO_URL = "https://github.com/impactvelocity/recco-tv";
 export const YOUTUBE_ID = "J1pppa0i8ds";
-export const YOUTUBE_URL = `https://www.youtube.com/watch?v=${YOUTUBE_ID}`;
+export const HACKATHON_URL = "https://amazonappdev2026.devpost.com/";
+
+export const CREATOR = {
+  name: "Dylan Jones",
+  role: "Creator of Recco",
+  links: [
+    ["Site", "https://hidylanjones.com/"],
+    ["LinkedIn", "https://www.linkedin.com/in/hidylanjones"],
+    ["Twitter", "https://twitter.com/hidylanjones"],
+  ] as [string, string][],
+};
 export const RECCO_NUMBER = "(604) 555-0142";
 export const PAIRING_CODE = "48217";
 
@@ -207,179 +217,4 @@ export const INBOX: Card[] = [
     time: "Sun",
     poster: "second-summer",
   },
-];
-
-/** "What the agent handles", from the README. */
-export const EXAMPLES: { text: string; result: string; detail: string }[] = [
-  {
-    text: "Two-Car Garage - Jill said it was hilarious",
-    result: "A card under Jill",
-    detail: "with her note, in her words",
-  },
-  {
-    text: "Floor Thirteen",
-    result: "A card under “From me”",
-    detail: "a note to yourself",
-  },
-  {
-    text: "filmtok.cx/@steph/74… Steph sent this",
-    result: "One card per show in the post",
-    detail: "stacked together, under Steph",
-  },
-  {
-    text: "reelhub.cx/watch?v=8hQ…",
-    result: "Cards under “From the internet”",
-    detail: "a bare link with no name",
-  },
-  {
-    text: "movies for a stormy night",
-    result: "A stack of ideas",
-    detail: "under “Recco’s picks”, each one checked",
-  },
-  {
-    text: "that show with the guy in the bunker",
-    result: "The show you meant",
-    detail: "a half-remembered title is still a title",
-  },
-  {
-    text: "the garage one",
-    result: "A “Which one?” card",
-    detail: "up to three candidates to pick with the remote",
-  },
-  {
-    text: "zzzz",
-    result: "An unsorted note",
-    detail: "Recco never invents a title",
-  },
-];
-
-export type Service = { name: string; aws?: boolean };
-
-export const PIPELINE: {
-  title: string;
-  body: string;
-  uses: Service[];
-}[] = [
-  {
-    title: "The text arrives",
-    body: "The SMS provider calls a signed webhook. The API checks the signature and publishes the text to SNS in the AWS End User Messaging shape, so a number from AWS can replace the provider without a code change.",
-    uses: [
-      { name: "Zernio SMS" },
-      { name: "Lambda function URL", aws: true },
-      { name: "Amazon SNS", aws: true },
-      { name: "Amazon SQS", aws: true },
-    ],
-  },
-  {
-    title: "Intake sorts it out",
-    body: "A five-digit code links the phone to that TV. A phone that isn't linked is dropped. Anything else is saved, and the TV shows a placeholder in under a second.",
-    uses: [
-      { name: "AWS Lambda", aws: true },
-      { name: "Amazon DynamoDB", aws: true },
-      { name: "AWS AppSync Events", aws: true },
-    ],
-  },
-  {
-    title: "A worker starts the agent",
-    body: "Intake hands off without waiting. The worker calls the agent on AgentCore Runtime, one session per text.",
-    uses: [
-      { name: "AWS Lambda", aws: true },
-      { name: "Bedrock AgentCore Runtime", aws: true },
-    ],
-  },
-  {
-    title: "The Recco agent reads it",
-    body: "It waits five seconds for follow-up texts, because a link and its comment often arrive as two. Then it works through four tools and calls save_cards once.",
-    uses: [
-      { name: "Bedrock AgentCore Runtime", aws: true },
-      { name: "Vercel AI SDK" },
-      { name: "Claude Haiku 5.5" },
-      { name: "OMDb API" },
-    ],
-  },
-  {
-    title: "save_cards checks the work",
-    body: "Plain code, not the model. Cards that pass are written and the TV swaps the placeholder for the finished card.",
-    uses: [
-      { name: "TypeScript" },
-      { name: "Amazon DynamoDB", aws: true },
-      { name: "AWS AppSync Events", aws: true },
-    ],
-  },
-];
-
-export const TOOLS: { name: string; body: string; via: string }[] = [
-  {
-    name: "read_post",
-    body: "Reads a link from the text: a post's caption and transcript, or a web page. It only opens links that are in your text.",
-    via: "ScrapeCreators · Jina Reader",
-  },
-  {
-    name: "find_titles",
-    body: "Looks up each title in OMDb and returns real matches. For a misspelled title it tries again, up to three times per show.",
-    via: "OMDb · 7-day cache in DynamoDB",
-  },
-  {
-    name: "list_friends",
-    body: "Lists the friends this household already has, so “steph” is filed under the Steph you already have.",
-    via: "Amazon DynamoDB",
-  },
-  {
-    name: "save_cards",
-    body: "Checks every card, saves the ones that pass, and tells the TV.",
-    via: "DynamoDB · AppSync Events",
-  },
-];
-
-export const GUARDS: { label: string; rule: string }[] = [
-  {
-    label: "Every title",
-    rule: "Must come from find_titles in this run. Anything else is rejected.",
-  },
-  {
-    label: "The note",
-    rule: "Must be your exact words. If the model rewords it, your whole text is kept.",
-  },
-  {
-    label: "The friend",
-    rule: "Must be named in your text. Names from a post are dropped.",
-  },
-  {
-    label: "If nothing matches",
-    rule: "Your words are saved as a note. Recco never invents a title.",
-  },
-];
-
-export const STATS: { value: string; unit: string; label: string; budget: string }[] = [
-  { value: "0.75", unit: "s", label: "Placeholder on the TV after you hit send", budget: "budget 3 s" },
-  { value: "~5", unit: "s", label: "Finished card from a plain text", budget: "budget 20 s" },
-  { value: "10.2", unit: "s", label: "Finished card from a link, read live", budget: "budget 45 s" },
-  { value: "108", unit: "ms", label: "GET /inbox at p95", budget: "budget 500 ms" },
-  { value: "25/25", unit: "", label: "Agent test set of real-shaped texts and links", budget: "Claude Haiku 5.5" },
-];
-
-export const AWS_SERVICES = [
-  "Bedrock AgentCore Runtime",
-  "AWS Lambda",
-  "Amazon SNS",
-  "Amazon SQS",
-  "Amazon DynamoDB",
-  "AWS AppSync Events",
-  "AWS Secrets Manager",
-  "Amazon S3",
-  "AWS IAM",
-  "Amazon CloudWatch Logs",
-  "AWS CDK",
-];
-
-export const OTHER_STACK = [
-  "React Native for Vega",
-  "Hono",
-  "Vercel AI SDK",
-  "Vercel AI Gateway",
-  "Claude Haiku 5.5",
-  "OMDb",
-  "ScrapeCreators",
-  "Jina Reader",
-  "Zernio SMS",
 ];

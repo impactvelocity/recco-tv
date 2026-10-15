@@ -1,9 +1,7 @@
-import { Agent, Measured, SendAnything } from "@/components/agent";
-import { BuiltWith, Closing, Footer, Privacy } from "@/components/closing";
 import { Film } from "@/components/film";
-import { Evening, Hero, Nav } from "@/components/hero";
-import { Seasons } from "@/components/seasons";
-import { Steps } from "@/components/steps";
+import { Hero, Nav } from "@/components/hero";
+import { Journey } from "@/components/journey";
+import { Demo, Footer, Why } from "@/components/why";
 
 export default function Home() {
   return (
@@ -11,16 +9,10 @@ export default function Home() {
       <Nav />
       <main>
         <Hero />
-        <Evening />
         <Film />
-        <Steps />
-        <SendAnything />
-        <Agent />
-        <Measured />
-        <Seasons />
-        <Privacy />
-        <BuiltWith />
-        <Closing />
+        <Journey />
+        <Why />
+        <Demo />
       </main>
       <Footer />
     </>

@@ -244,3 +244,4 @@ The TV app now follows the handoff in `docs/design/` (README plus the three HTML
 - **TV screens are rebuilt in HTML** from the design handoff's tokens, like the film, since the Vega app can't render in a browser. The season switcher uses the six real themes and their background loops.
 - **Mock content only.** The app's screenshots show studio posters and a streaming service's logo, so the page uses the film's original posters and plain rating marks instead (no third-party logos).
 - **"Forget me" is not on the page** while tasks 5.6–5.9 are open.
+- **Second pass, same day:** a lighter, simpler page after runway.com. It follows the film's story in five chapters (TV time, connect, text it, your inbox, ask Alexa) plus "Why a text?". The agent, measured numbers, seasons, privacy and AWS sections were cut from the page; the diagrams stay linked from the footer. The film plays from YouTube, loaded only on click.

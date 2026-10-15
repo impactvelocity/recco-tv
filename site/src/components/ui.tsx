@@ -1,85 +1,46 @@
 import type { ReactNode } from "react";
 
-export function Eyebrow({ children, className = "" }: { children: ReactNode; className?: string }) {
+export function Logo({ className = "", light = false }: { className?: string; light?: boolean }) {
+  // The wordmark is white on transparent; invert it for the light page.
   return (
-    <div className={`text-[12.5px] font-semibold uppercase tracking-[0.14em] text-amber ${className}`}>{children}</div>
-  );
-}
-
-export function SectionHead({
-  eyebrow,
-  title,
-  accent,
-  children,
-  className = "",
-}: {
-  eyebrow?: string;
-  title: string;
-  accent?: string;
-  children?: ReactNode;
-  className?: string;
-}) {
-  return (
-    <div className={`max-w-3xl ${className}`}>
-      {eyebrow && <Eyebrow className="mb-4">{eyebrow}</Eyebrow>}
-      <h2 className="text-balance text-4xl font-bold leading-[1.05] tracking-[-0.025em] md:text-5xl">
-        {title}
-        {accent && <span className="text-amber"> {accent}</span>}
-      </h2>
-      {children && <p className="mt-5 text-pretty text-lg leading-relaxed text-ink-2">{children}</p>}
-    </div>
-  );
-}
-
-export function Chip({ children, aws = false }: { children: ReactNode; aws?: boolean }) {
-  return (
-    <span
-      className={
-        aws
-          ? "inline-flex rounded-full border border-orange/30 bg-orange/12 px-3 py-1 text-[13px] font-medium text-[#f3b08c]"
-          : "inline-flex rounded-full border border-line bg-white/[0.04] px-3 py-1 text-[13px] font-medium text-ink-2"
-      }
-    >
-      {children}
-    </span>
-  );
-}
-
-export function NumberBadge({ n }: { n: number }) {
-  return (
-    <span className="grid size-8 shrink-0 place-items-center rounded-full bg-amber text-[15px] font-bold text-[#2a1a10]">
-      {n}
-    </span>
-  );
-}
-
-export function Panel({ children, className = "" }: { children: ReactNode; className?: string }) {
-  return (
-    <div className={`rounded-[26px] border border-line bg-panel/80 backdrop-blur-sm ${className}`}>{children}</div>
+    // eslint-disable-next-line @next/next/no-img-element
+    <img src="/brand/recco-logo.png" alt="Recco" className={`w-auto ${light ? "" : "invert"} ${className}`} />
   );
 }
 
 export function ButtonLink({
   href,
   children,
-  variant = "primary",
+  variant = "dark",
   external = false,
 }: {
   href: string;
   children: ReactNode;
-  variant?: "primary" | "ghost";
+  variant?: "dark" | "light" | "outline" | "glass";
   external?: boolean;
 }) {
-  const base =
-    "inline-flex items-center gap-2 rounded-full px-6 py-3 text-[15px] font-semibold transition duration-200 ease-tv focus-visible:outline-3 focus-visible:outline-offset-4 focus-visible:outline-amber";
-  const look =
-    variant === "primary"
-      ? "bg-amber text-[#2a1a10] hover:bg-[#f5c788]"
-      : "border border-line bg-white/[0.05] text-ink hover:border-line-hi hover:bg-white/[0.09]";
+  const look = {
+    dark: "bg-ink text-white hover:bg-black",
+    light: "bg-white text-ink hover:bg-cream",
+    outline: "border border-line text-ink hover:border-ink/30 hover:bg-white",
+    glass: "border border-white/25 bg-white/10 text-white backdrop-blur hover:bg-white/20",
+  }[variant];
   return (
-    <a href={href} className={`${base} ${look}`} {...(external ? { target: "_blank", rel: "noreferrer" } : {})}>
+    <a
+      href={href}
+      className={`inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-[15px] font-medium transition duration-200 ease-tv focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-orange ${look}`}
+      {...(external ? { target: "_blank", rel: "noreferrer" } : {})}
+    >
       {children}
     </a>
+  );
+}
+
+export function PlayIcon({ className = "size-3.5" }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" className={`fill-current ${className}`}>
+      <path d="M8 5v14l11-7z" />
+    </svg>
   );
 }
 

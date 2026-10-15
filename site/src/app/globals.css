@@ -1,20 +1,20 @@
 @import "tailwindcss";
 
-/* Palette from docs/diagram (fall-night): warm ink on a dark green-black room. */
+/* A light, editorial page. Dark "night" cards hold the TV, and the warm palette from
+   docs/diagram is kept for the parts that need to pop: texts, Alexa, accents. */
 @theme {
-  --color-bg: #121918;
-  --color-bg-deep: #0c1110;
-  --color-panel: #161f1d;
-  --color-panel-hi: #1c2724;
-  --color-line: rgb(255 247 232 / 0.1);
-  --color-line-hi: rgb(240 182 103 / 0.32);
+  --color-paper: #faf8f4;
+  --color-paper-2: #f1ede6;
+  --color-ink: #141414;
+  --color-ink-2: #55524c;
+  --color-muted: #8a857c;
+  --color-line: #e6e1d8;
+  --color-night: #121918;
+  --color-night-2: #1b2422;
   --color-amber: #f0b667;
   --color-orange: #d3632d;
-  --color-ink: #fff7e8;
-  --color-ink-2: #cfc9b4;
-  --color-muted: #8e978d;
-  --color-sms: #1f8a3a;
-  --color-sms-hi: #26a247;
+  --color-cream: #fff7e8;
+  --color-sms: #22a447;
 
   --font-sans: var(--font-inter), -apple-system, "Helvetica Neue", sans-serif;
   --font-mono: ui-monospace, "SF Mono", Menlo, monospace;
@@ -22,27 +22,25 @@
   --ease-tv: cubic-bezier(0.2, 0.8, 0.2, 1);
 
   --animate-rise: rise 0.9s var(--ease-tv) both;
-  --animate-float: float 7s ease-in-out infinite;
+  --animate-drift: drift 24s ease-in-out infinite alternate;
   --animate-pulse-ring: pulse-ring 2.4s ease-out infinite;
-  --animate-shimmer: shimmer 1.6s linear infinite;
 
   @keyframes rise {
     from {
       opacity: 0;
-      transform: translateY(18px);
+      transform: translateY(16px);
     }
     to {
       opacity: 1;
       transform: none;
     }
   }
-  @keyframes float {
-    0%,
-    100% {
-      transform: translateY(0);
+  @keyframes drift {
+    from {
+      transform: scale(1.04);
     }
-    50% {
-      transform: translateY(-10px);
+    to {
+      transform: scale(1.12) translateX(-1.5%);
     }
   }
   @keyframes pulse-ring {
@@ -53,29 +51,21 @@
       box-shadow: 0 0 0 28px rgb(211 99 45 / 0);
     }
   }
-  @keyframes shimmer {
-    from {
-      background-position: -200% 0;
-    }
-    to {
-      background-position: 200% 0;
-    }
-  }
 }
 
 html {
   scroll-behavior: smooth;
-  color-scheme: dark;
+  color-scheme: light;
 }
 
 body {
-  background: var(--color-bg);
+  background: var(--color-paper);
   color: var(--color-ink);
   -webkit-font-smoothing: antialiased;
 }
 
 ::selection {
-  background: rgb(240 182 103 / 0.35);
+  background: rgb(240 182 103 / 0.45);
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -173,45 +173,6 @@ export function TvCard({ card, theme, focused = false }: { card: Card; theme: Th
   );
 }
 
-export function PlaceholderCard({ theme }: { theme: Theme }) {
-  const block = (w: string, h: number) => (
-    <div
-      className="animate-shimmer"
-      style={{
-        width: w,
-        height: u(h),
-        borderRadius: u(10),
-        background: `linear-gradient(90deg, rgba(255,255,255,.06), rgba(255,255,255,.16), rgba(255,255,255,.06))`,
-        backgroundSize: "200% 100%",
-      }}
-    />
-  );
-  return (
-    <div
-      className="flex"
-      style={{ height: u(414), padding: u(18), gap: u(20), borderRadius: u(20), background: surface(theme, 0.8) }}
-    >
-      <div className="flex flex-1 flex-col" style={{ gap: u(14) }}>
-        {block("80%", 30)}
-        {block("50%", 18)}
-        <div className="mt-auto flex items-center" style={{ gap: u(10), fontSize: u(19), color: theme.text2 }}>
-          <span className="inline-flex" style={{ gap: u(5) }}>
-            {[0, 1, 2].map((i) => (
-              <span
-                key={i}
-                className="animate-pulse rounded-full"
-                style={{ width: u(9), height: u(9), background: theme.accent2, animationDelay: `${i * 0.2}s` }}
-              />
-            ))}
-          </span>
-          Looking it up…
-        </div>
-      </div>
-      <div className="shrink-0">{block(u(252), 378)}</div>
-    </div>
-  );
-}
-
 export function StackGlyph({ size = 24 }: { size?: number }) {
   return (
     <svg viewBox="0 0 24 24" style={{ width: u(size), height: u(size) }} fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
@@ -312,18 +273,6 @@ export function TvInbox({
           <div key={c.id}>{slots?.[i] ?? <TvCard card={c} theme={theme} focused={c.id === focusedId} />}</div>
         ))}
       </div>
-    </div>
-  );
-}
-
-/** Bezel and stand around a 16:9 screen. */
-export function TvFrame({ children, className = "" }: { children: ReactNode; className?: string }) {
-  return (
-    <div className={`relative ${className}`}>
-      <div className="rounded-[clamp(8px,1.2vw,18px)] bg-[#0a0d0d] p-[clamp(4px,0.6vw,10px)] shadow-[0_40px_120px_rgba(0,0,0,.6)] ring-1 ring-white/10">
-        <div className="overflow-hidden rounded-[clamp(4px,0.6vw,8px)]">{children}</div>
-      </div>
-      <div className="mx-auto h-[clamp(4px,0.5vw,8px)] w-1/4 rounded-b-md bg-[#0a0d0d]" />
     </div>
   );
 }
