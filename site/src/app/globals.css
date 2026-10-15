@@ -24,11 +24,22 @@
   --animate-rise: rise 0.9s var(--ease-tv) both;
   --animate-drift: drift 24s ease-in-out infinite alternate;
   --animate-pulse-ring: pulse-ring 2.4s ease-out infinite;
+  --animate-pop: pop 0.45s var(--ease-tv) both;
 
   @keyframes rise {
     from {
       opacity: 0;
       transform: translateY(16px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  @keyframes pop {
+    from {
+      opacity: 0;
+      transform: translateY(10px) scale(0.92);
     }
     to {
       opacity: 1;
@@ -62,6 +73,27 @@ body {
   background: var(--color-paper);
   color: var(--color-ink);
   -webkit-font-smoothing: antialiased;
+}
+
+/* The curled tail on the last text bubble of a run, as on iOS. The ::after cut-out
+   must match the phone screen behind it (white). */
+.sms-tail::before,
+.sms-tail::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  height: 18px;
+}
+.sms-tail::before {
+  right: -7px;
+  border-right: 18px solid var(--color-sms);
+  border-bottom-right-radius: 15px 13px;
+}
+.sms-tail::after {
+  right: -24px;
+  width: 24px;
+  background: white;
+  border-bottom-left-radius: 10px;
 }
 
 ::selection {

@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { INBOX, PAIRING_CODE, RECCO_NUMBER, THEMES } from "@/lib/content";
-import { fitWidth, Poster, Ratings, TvBackground, TvInbox, u } from "./tv";
+import { Poster, Ratings, TvBackground, TvInbox, u } from "./tv";
 import { Check, Mic } from "./ui";
 
 const [winterNight, fallDay, fallNight] = THEMES;
@@ -156,90 +156,285 @@ function Connect() {
   );
 }
 
-type Sent = { when: string; text?: string; link?: { caption: string; host: string } };
+/** One run of texts on the phone and the card it becomes on the TV. */
+type Step = {
+  day: string;
+  time: string;
+  texts: { text?: string; link?: { caption: string; host: string; image: string } }[];
+  card: { title: string; meta: string; said: string; from: string; avatar: string; when: string; posters: string[] };
+};
 
-/** The thread on the phone. Each group becomes one entry on the TV. */
-const THREAD: Sent[][] = [
-  [{ when: "Tue 7:42 PM", text: "Jill says Two-Car Garage is hilarious" }],
-  [{ when: "Thu 12:15 PM", link: { caption: "3 cozy comedies for a night in", host: "filmtok.cx" } }, { when: "", text: "Steph sent this" }],
-  [{ when: "Today 6:03 PM", text: "movies for a stormy night" }],
+const STEPS: Step[] = [
+  {
+    day: "Tuesday",
+    time: "7:42 PM",
+    texts: [{ text: "Jill says Two-Car Garage is hilarious" }],
+    card: { title: "Two-Car Garage", meta: "Series · 1998–2007", said: "Jill says it’s hilarious", from: "Jill", avatar: "J", when: "Tue", posters: ["two-car-garage"] },
+  },
+  {
+    day: "Thursday",
+    time: "12:15 PM",
+    texts: [{ link: { caption: "3 cozy comedies for a night in", host: "filmtok.cx", image: "couch-time" } }, { text: "Steph sent this" }],
+    card: { title: "3 cozy comedies for a night in", meta: "3 shows · FilmTok", said: "Steph sent this", from: "Steph", avatar: "S", when: "Thu", posters: ["room-104", "couch-time", "away-game"] },
+  },
+  {
+    day: "Today",
+    time: "6:03 PM",
+    texts: [{ text: "movies for a stormy night" }],
+    card: { title: "Stormy Night Movies", meta: "3 picks · each one checked", said: "movies for a stormy night", from: "Recco’s picks", avatar: "✦", when: "now", posters: ["fog-house", "will-reading", "third-floor-mystery"] },
+  },
 ];
 
-const SORTED: { title: string; from: string; avatar: string; note: string; tag: string; posters: string[] }[] = [
-  { title: "Two-Car Garage", from: "Jill", avatar: "J", note: "“hilarious”", tag: "Sitcom · 1998", posters: ["two-car-garage"] },
-  { title: "3 cozy comedies", from: "Steph", avatar: "S", note: "One post, three shows", tag: "Stack of 3", posters: ["room-104", "couch-time", "away-game"] },
-  { title: "Stormy Night Movies", from: "Recco’s picks", avatar: "✦", note: "Each one checked", tag: "Stack of 3", posters: ["fog-house", "will-reading", "third-floor-mystery"] },
-];
+/** When each text and card pops in (ms after the section is in view): texts first, then their card. */
+const TIMING = STEPS.map((s, i) => {
+  const start = 250 + i * 1100;
+  return { texts: s.texts.map((_, j) => start + j * 280), card: start + s.texts.length * 280 + 320 };
+});
+
+function useSeen<T extends Element>() {
+  const ref = useRef<T>(null);
+  const [seen, setSeen] = useState(false);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const io = new IntersectionObserver(
+      ([e]) => {
+        if (e.isIntersecting) {
+          setSeen(true);
+          io.disconnect();
+        }
+      },
+      { threshold: 0.35 },
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
+  return [ref, seen] as const;
+}
+
+const reveal = (seen: boolean, delay: number, anim = "animate-pop") => ({
+  className: seen ? `${anim} motion-reduce:animate-none` : "opacity-0 motion-reduce:opacity-100",
+  style: { animationDelay: `${delay}ms` },
+});
 
 function TextIt() {
+  const t = fallNight;
+  const [ref, seen] = useSeen<HTMLDivElement>();
   return (
-    <div className="grid grid-cols-1 overflow-hidden rounded-[20px] bg-[linear-gradient(140deg,#fbeedb_0%,#f6d2a8_55%,#efa66b_100%)] md:grid-cols-2">
-      {/* The phone: a plain thread with the Recco number. */}
-      <div className="flex justify-center px-6 pt-10 md:px-10 md:py-12">
-        <div className="w-full max-w-[320px] overflow-hidden rounded-t-[36px] bg-white shadow-[0_30px_70px_rgba(140,60,10,.25)] md:rounded-[36px]">
-          <div className="flex flex-col items-center gap-1 border-b border-line/70 pb-3 pt-5">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/brand/app-icon.png" alt="" className="size-10 rounded-full" />
-            <div className="text-[13px] font-semibold">Recco</div>
+    <div ref={ref} className="@container relative isolate overflow-hidden rounded-[20px] bg-night" style={{ color: t.text }}>
+      <TvBackground theme={t} />
+      <div className="absolute inset-0 bg-black/25 backdrop-blur-[2px]" />
+      <div className="relative grid items-center justify-items-center gap-10 px-6 py-10 @2xl:grid-cols-[auto_minmax(0,1fr)] @2xl:justify-items-stretch @2xl:gap-10 @2xl:px-10 @4xl:gap-14 @4xl:px-14 @4xl:py-14">
+        <Phone seen={seen} />
+        <div className="w-full min-w-0 max-w-[460px]">
+          <div className="mb-4 flex items-center gap-2 text-[13px] font-medium" style={{ color: t.text2 }}>
+            <span className="size-1.5 rounded-full" style={{ background: t.accent2 }} /> On your TV, sorted
           </div>
-          <div className="space-y-2 px-4 pb-6 pt-3">
-            {THREAD.flat().map((m, i) => (
-              <div key={i}>
-                {m.when && <div className="py-2 text-center text-[11px] text-muted">{m.when}</div>}
-                {m.link ? (
-                  <div className="ml-auto w-[80%] overflow-hidden rounded-2xl rounded-br-md bg-paper-2">
-                    <div className="grid h-20 place-items-center bg-gradient-to-br from-[#3a2a4a] via-[#6b3a3a] to-[#c0612f]">
-                      <svg viewBox="0 0 24 24" className="size-6 fill-white/90">
-                        <path d="M8 5v14l11-7z" />
-                      </svg>
+          <div className="space-y-3">
+            {STEPS.map(({ card: c }, i) => {
+              const r = reveal(seen, TIMING[i].card, "animate-rise");
+              return (
+                <div
+                  key={c.title}
+                  className={`flex items-center gap-4 rounded-[18px] p-3 ring-1 ring-white/10 backdrop-blur-xl ${r.className}`}
+                  style={{
+                    ...r.style,
+                    background: `rgba(${t.surface},.8)`,
+                    boxShadow: "0 20px 50px rgba(0,0,0,.35)",
+                  }}
+                >
+                  <PosterStack posters={c.posters} />
+                  <div className="min-w-0 flex-1">
+                    <div className="text-[16px] font-semibold leading-snug tracking-[-0.01em]">{c.title}</div>
+                    <div className="mt-0.5 text-[12.5px]" style={{ color: t.text2 }}>
+                      {c.meta}
                     </div>
-                    <div className="px-3 py-2">
-                      <div className="text-[13px] font-semibold leading-snug">{m.link.caption}</div>
-                      <div className="text-[11px] text-muted">{m.link.host}</div>
+                    <div
+                      className="mt-2.5 w-fit max-w-full rounded-[12px_12px_12px_4px] px-3 py-1.5 text-[13.5px] leading-snug"
+                      style={{
+                        background: `linear-gradient(135deg, ${t.tint[0]}, ${t.tint[1]})`,
+                      }}
+                    >
+                      {c.said}
+                    </div>
+                    <div className="mt-2 flex items-center gap-1.5 text-[12.5px]" style={{ color: t.text2 }}>
+                      <span
+                        className="grid size-[18px] shrink-0 place-items-center rounded-full text-[9.5px] font-bold"
+                        style={{ background: t.accent, color: t.text }}
+                      >
+                        {c.avatar}
+                      </span>
+                      <b className="font-semibold" style={{ color: t.text }}>
+                        {c.from}
+                      </b>
+                      · {c.when}
                     </div>
                   </div>
-                ) : (
-                  <div className="ml-auto w-fit max-w-[80%] rounded-2xl rounded-br-md bg-sms px-3.5 py-2 text-[14px] leading-snug text-white">
-                    {m.text}
-                  </div>
-                )}
-              </div>
-            ))}
-            <div className="pt-0.5 text-right text-[11px] text-muted">Delivered</div>
+                </div>
+              );
+            })}
           </div>
         </div>
       </div>
+    </div>
+  );
+}
 
-      {/* What lands on the TV. */}
-      <div className="flex flex-col justify-center gap-3 bg-night p-6 md:rounded-none md:p-10">
-        <div className="mb-1 flex items-center gap-2 text-[13px] text-white/55">
-          <span className="size-1.5 rounded-full bg-amber" /> On your TV, sorted
-        </div>
-        {SORTED.map((c) => (
-          <div key={c.title} className="flex items-center gap-4 rounded-2xl bg-white/[0.06] p-3 ring-1 ring-white/10">
-            <div className="relative h-[66px] w-[60px] shrink-0">
-              {c.posters.map((p, i) => (
-                <div
-                  key={p}
-                  className="@container absolute top-0 w-11"
-                  style={{ ...fitWidth(44), left: c.posters.length > 1 ? i * 8 : 8, transform: c.posters.length > 1 ? `rotate(${[-6, 0, 6][i]}deg)` : undefined, zIndex: i }}
-                >
-                  <Poster slug={p} w={44} h={66} radius={6} />
-                </div>
-              ))}
-            </div>
-            <div className="min-w-0 flex-1">
-              <div className="truncate text-[16px] font-semibold text-cream">{c.title}</div>
-              <div className="mt-1 flex items-center gap-2 text-[13px] text-white/60">
-                <span className="grid size-5 shrink-0 place-items-center rounded-full bg-orange text-[10px] font-bold text-white">{c.avatar}</span>
-                <span className="truncate">
-                  <b className="font-medium text-white/85">{c.from}</b> · {c.note}
+function PosterStack({ posters }: { posters: string[] }) {
+  const stack = posters.length > 1;
+  return (
+    <div className="relative h-[92px] w-[78px] shrink-0">
+      {posters.map((p, i) => (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          key={p}
+          src={`/posters/${p}.jpg`}
+          alt=""
+          loading="lazy"
+          className="absolute top-1 h-[84px] w-[56px] rounded-[7px] object-cover shadow-[0_10px_24px_rgba(0,0,0,.5)]"
+          style={{ left: stack ? i * 11 : 11, transform: stack ? `rotate(${[-7, 0, 7][i]}deg)` : undefined, zIndex: i }}
+        />
+      ))}
+    </div>
+  );
+}
+
+/** An iPhone in light mode, open to the SMS thread with the Recco number. */
+function Phone({ seen }: { seen: boolean }) {
+  const ios = { fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Text", var(--font-inter), sans-serif' };
+  return (
+    // Drawn at 300px and zoomed down in narrow layouts, so the whole thread always fits.
+    <div className="relative w-[300px] shrink-0 [zoom:0.9] @4xl:[zoom:1]" style={ios}>
+      {/* Side buttons sit just outside the frame. */}
+      <span className="absolute -left-[3px] top-[17%] h-[4.5%] w-[4px] rounded-l-[2px] bg-[#3b3b3e]" />
+      <span className="absolute -left-[3px] top-[25%] h-[8.5%] w-[4px] rounded-l-[2px] bg-[#3b3b3e]" />
+      <span className="absolute -left-[3px] top-[35.5%] h-[8.5%] w-[4px] rounded-l-[2px] bg-[#3b3b3e]" />
+      <span className="absolute -right-[3px] top-[27%] h-[13%] w-[4px] rounded-r-[2px] bg-[#3b3b3e]" />
+
+      <div className="relative aspect-[71.5/147] rounded-[46px] bg-[linear-gradient(150deg,#6b6b70,#2c2c2f_22%,#1c1c1e_60%,#55555a)] p-[3px] shadow-[0_50px_100px_-20px_rgba(0,0,0,.8),0_30px_60px_-30px_rgba(0,0,0,.6)]">
+        <div className="h-full rounded-[43px] bg-black p-[9px]">
+          <div className="relative flex h-full flex-col overflow-hidden rounded-[34px] bg-white text-black">
+            {/* Status bar and conversation header share the frosted top. */}
+            <div className="relative z-10 border-b border-black/[0.08] bg-[#f6f6f7]">
+              <div className="grid h-[44px] grid-cols-[1fr_88px_1fr] items-center pt-[2px] text-[15px] font-semibold">
+                <span className="text-center">6:04</span>
+                <span className="h-[26px] rounded-full bg-black" />
+                <span className="flex items-center justify-center gap-[5px]">
+                  <svg viewBox="0 0 18 12" className="h-[10px] w-[16px] fill-current">
+                    <rect x="0" y="8" width="3" height="4" rx="1" />
+                    <rect x="5" y="5.5" width="3" height="6.5" rx="1" />
+                    <rect x="10" y="3" width="3" height="9" rx="1" />
+                    <rect x="15" y="0" width="3" height="12" rx="1" />
+                  </svg>
+                  <svg viewBox="0 0 16 12" className="h-[10px] w-[14px] fill-current">
+                    <path d="M8 2.4c2.3 0 4.4.9 6 2.4l1.3-1.3A10.6 10.6 0 0 0 8 .5C5.2.5 2.6 1.6.7 3.5L2 4.8a8.7 8.7 0 0 1 6-2.4zm0 3.6c1.3 0 2.5.5 3.4 1.3l1.3-1.3A6.6 6.6 0 0 0 8 4.1c-1.8 0-3.5.7-4.7 1.9l1.3 1.3C5.5 6.5 6.7 6 8 6zm0 3.5c-.6 0-1.1.2-1.5.6L8 11.6l1.5-1.5c-.4-.4-.9-.6-1.5-.6z" />
+                  </svg>
+                  <svg viewBox="0 0 27 13" className="h-[11px] w-[24px]">
+                    <rect x="0.5" y="0.5" width="22" height="12" rx="3.5" fill="none" stroke="currentColor" strokeOpacity=".35" />
+                    <rect x="2" y="2" width="15" height="9" rx="2" fill="currentColor" />
+                    <path d="M24 4.5v4c.9-.3 1.5-1.1 1.5-2s-.6-1.7-1.5-2z" fill="currentColor" fillOpacity=".4" />
+                  </svg>
                 </span>
               </div>
+              <div className="relative flex flex-col items-center gap-1 pb-2.5 pt-0.5">
+                <svg
+                  viewBox="0 0 12 20"
+                  className="absolute left-3.5 top-3 h-[18px] w-[11px] fill-none stroke-[#0a84ff] stroke-[2.6]"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M10 2 2 10l8 8" />
+                </svg>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src="/brand/app-icon.png" alt="" className="size-[42px] rounded-full" />
+                <div className="flex items-center gap-0.5 text-[11px] font-medium">
+                  Recco
+                  <svg
+                    viewBox="0 0 8 12"
+                    className="h-[8px] w-[5px] fill-none stroke-[#8e8e93] stroke-[2]"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="m2 2 4 4-4 4" />
+                  </svg>
+                </div>
+              </div>
             </div>
-            <span className="hidden shrink-0 rounded-full bg-amber/15 px-2.5 py-1 text-[11.5px] font-medium text-amber sm:block">{c.tag}</span>
+
+            {/* The thread, scrolled to the latest text. */}
+            <div className="flex min-h-0 flex-1 flex-col justify-end overflow-hidden px-3 pb-1">
+              {STEPS.map((s, i) => (
+                <div key={s.day}>
+                  <div
+                    style={reveal(seen, TIMING[i].texts[0]).style}
+                    className={`pb-1.5 pt-3 text-center text-[10.5px] text-[#8e8e93] ${reveal(seen, 0).className}`}
+                  >
+                    <b className="font-semibold">{s.day}</b> {s.time}
+                  </div>
+                  <div className="space-y-[3px]">
+                    {s.texts.map((m, j) => {
+                      const r = reveal(seen, TIMING[i].texts[j]);
+                      const last = j === s.texts.length - 1;
+                      return m.link ? (
+                        <div
+                          key={j}
+                          style={r.style}
+                          className={`ml-auto w-[76%] origin-bottom-right overflow-hidden rounded-[17px] bg-[#e9e9eb] ${r.className}`}
+                        >
+                          <div className="relative h-[86px]">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img src={`/posters/${m.link.image}.jpg`} alt="" className="h-full w-full object-cover object-[50%_30%]" />
+                            <span className="absolute inset-0 grid place-items-center bg-black/15">
+                              <span className="grid size-8 place-items-center rounded-full bg-black/45 backdrop-blur">
+                                <svg viewBox="0 0 24 24" className="ml-0.5 size-4 fill-white">
+                                  <path d="M8 5v14l11-7z" />
+                                </svg>
+                              </span>
+                            </span>
+                          </div>
+                          <div className="px-3 py-2">
+                            <div className="text-[12.5px] font-semibold leading-snug">{m.link.caption}</div>
+                            <div className="text-[11px] text-[#8e8e93]">{m.link.host}</div>
+                          </div>
+                        </div>
+                      ) : (
+                        <div key={j} style={r.style} className={`flex origin-bottom-right justify-end ${r.className}`}>
+                          <div
+                            className={`relative max-w-[76%] rounded-[17px] bg-sms px-3 py-[7px] text-[14px] leading-[1.3] text-white ${last ? "sms-tail" : ""}`}
+                          >
+                            {m.text}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+              <div
+                style={reveal(seen, TIMING[2].texts[0] + 300).style}
+                className={`pr-1 pt-1 text-right text-[10.5px] font-medium text-[#8e8e93] ${reveal(seen, 0).className}`}
+              >
+                Delivered
+              </div>
+            </div>
+
+            {/* Compose bar and home indicator. */}
+            <div className="flex items-center gap-2 px-3 pt-2">
+              <span className="grid size-[30px] shrink-0 place-items-center rounded-full bg-[#e9e9eb]">
+                <svg viewBox="0 0 16 16" className="size-3.5 stroke-[#7c7c80] stroke-2" strokeLinecap="round">
+                  <path d="M8 2v12M2 8h12" />
+                </svg>
+              </span>
+              <div className="flex h-[32px] min-w-0 flex-1 items-center justify-between rounded-full border border-[#d1d1d6] pl-3 pr-2.5 text-[13.5px] text-[#b4b4b9]">
+                Text Message
+                <Mic className="size-4 text-[#9a9a9f]" />
+              </div>
+            </div>
+            <div className="flex justify-center pb-2 pt-4">
+              <span className="h-[5px] w-[100px] rounded-full bg-black" />
+            </div>
           </div>
-        ))}
+        </div>
       </div>
     </div>
   );
