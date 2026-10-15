@@ -8,6 +8,8 @@ There is no phone app and Recco never texts back. Capture is a text message; eve
 
 Built for the Amazon Developer Hackathon (Fire TV track) and the AWS Builder mini challenge. MIT licensed.
 
+[![Demo of Recco on Fire TV](https://recco.dev/demo/recco-tv-demo-small.gif)](https://recco.dev/demo/recco-tv-demo.gif)
+
 ![The Recco inbox on Fire TV: stacks of picks and a single show, each with the text that sent it](docs/screenshots/inbox.webp)
 
 | Featured | Detail | Settings |
