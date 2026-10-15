@@ -1,7 +1,7 @@
 import { InvokeCommand, LambdaClient } from "@aws-sdk/client-lambda";
 import type { AgentJob } from "@recco/core";
 import { AwsEumProvider } from "@recco/sms";
-import { awsDeps, loadSecrets, requireEnv } from "@recco/store";
+import { awsDeps, loadSecrets, requireEnv, safeError } from "@recco/store";
 import { handleInboundText } from "./intake";
 
 const lambda = new LambdaClient({});
@@ -37,7 +37,7 @@ export async function lambdaHandler(event: SqsEvent) {
       });
       console.log(JSON.stringify({ messageId: record.messageId, result: result.kind }));
     } catch (err) {
-      console.error("Intake failed", record.messageId, err);
+      console.error(JSON.stringify({ messageId: record.messageId, error: safeError(err) }));
       batchItemFailures.push({ itemIdentifier: record.messageId });
     }
   }

@@ -73,7 +73,8 @@ export class ReccoStack extends Stack {
 
     // Text intake: AWS End User Messaging (later) and the webhook both publish here.
     const topic = new sns.Topic(this, "InboundTexts", { displayName: "Recco inbound texts" });
-    const deadLetters = new sqs.Queue(this, "InboundTextsDLQ", { retentionPeriod: Duration.days(14) });
+    // Dead letters hold raw texts with phone numbers, out of reach of a delete: keep them 4 days (R11.10).
+    const deadLetters = new sqs.Queue(this, "InboundTextsDLQ", { retentionPeriod: Duration.days(4) });
     const queue = new sqs.Queue(this, "InboundTextsQueue", {
       visibilityTimeout: Duration.seconds(60),
       deadLetterQueue: { queue: deadLetters, maxReceiveCount: 3 },

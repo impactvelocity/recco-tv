@@ -23,7 +23,8 @@
     "infra:deploy": "pnpm --filter @recco/infra exec cdk deploy --require-approval broadening --outputs-file ../.recco-outputs.json",
     "infra:secrets": "tsx scripts/push-secrets.ts",
     "infra:destroy": "pnpm --filter @recco/infra exec cdk destroy --force",
-    "measure": "tsx scripts/measure.ts"
+    "measure": "tsx scripts/measure.ts",
+    "backfill:households": "tsx scripts/backfill-households.ts"
   },
   "devDependencies": {
     "@aws-sdk/client-secrets-manager": "^3.1148.0",

@@ -1,6 +1,6 @@
 import { BedrockAgentCoreClient, InvokeAgentRuntimeCommand } from "@aws-sdk/client-bedrock-agentcore";
 import type { AgentJob } from "@recco/core";
-import { awsDeps, requireEnv } from "@recco/store";
+import { awsDeps, requireEnv, safeError } from "@recco/store";
 
 const agentcore = new BedrockAgentCoreClient({});
 const deps = awsDeps();
@@ -14,7 +14,7 @@ const runtimeArn = requireEnv("AGENT_RUNTIME_ARN");
 export async function lambdaHandler(job: AgentJob) {
   const message = await deps.store.getMessage(job.householdId, job.messageId);
   if (!message || message.status !== "pending") {
-    console.log("Already handled", job.messageId, message?.status);
+    console.log(JSON.stringify({ messageId: job.messageId, skipped: message?.status ?? "gone" }));
     return;
   }
   try {
@@ -28,12 +28,23 @@ export async function lambdaHandler(job: AgentJob) {
         payload: new TextEncoder().encode(JSON.stringify(job)),
       }),
     );
+    // The agent answers with ids, counts and timings; log the status only (R11.9).
     const body = (await res.response?.transformToString()) ?? "";
-    console.log("Agent finished", job.messageId, body.slice(0, 500));
+    console.log(JSON.stringify({ messageId: job.messageId, status: statusOf(body) }));
   } catch (err) {
-    console.error("AgentCore invocation failed", job.messageId, err);
-    await deps.store.updateMessage(job.householdId, job.messageId, { status: "failed", error: String(err) });
+    console.error(JSON.stringify({ messageId: job.messageId, error: safeError(err) }));
+    // Forgotten in the meantime: the message is gone and there is no one to tell (R11.7).
     const household = await deps.store.getHousehold(job.householdId);
-    if (household) await deps.publisher.publish(household.channelId, { type: "card.failed", messageId: job.messageId });
+    if (!household) return;
+    await deps.store.updateMessage(job.householdId, job.messageId, { status: "failed", error: String(err) });
+    await deps.publisher.publish(household.channelId, { type: "card.failed", messageId: job.messageId });
+  }
+}
+
+function statusOf(body: string): string {
+  try {
+    return String((JSON.parse(body) as { status?: unknown }).status ?? "unknown");
+  } catch {
+    return "unreadable";
   }
 }

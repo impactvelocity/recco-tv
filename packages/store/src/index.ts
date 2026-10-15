@@ -5,3 +5,5 @@ export * from "./seed";
 export * from "./dynamo";
 export * from "./appsync";
 export * from "./runtime";
+export * from "./forget";
+export * from "./backfill";

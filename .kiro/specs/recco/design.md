@@ -51,7 +51,7 @@ Hono on Lambda behind a function URL. Every call except `POST /devices` needs `A
 |---|---|
 | `POST /devices` | Create a device. Returns the device token, pairing code, Recco number, and expiry. |
 | `POST /devices/code` | Issue a fresh pairing code. |
-| `GET /inbox` | Pairing state (including `otherTvs`, the household's other device count), friends, and cards. |
+| `GET /inbox` | Pairing state (including `householdId` and `otherTvs`, the household's other device count), friends, and cards. A device whose household is gone gets 401. |
 | `PATCH /cards/:id` | Change state, rating, chosen candidate, or friend. |
 | `DELETE /household` | Forget me. Deletes the calling device's household and returns 204 when done. |
 | `GET /realtime` | WebSocket address, channel name, and auth for AppSync Events. |
@@ -115,14 +115,15 @@ The decision is a pure function in `packages/core` (`planMove`), so the rule is 
 
 ### Forget me
 
-Triggered by `DELETE /household`, or by intake when a linked phone texts "FORGET ME" (`isForgetCommand` in `packages/core`). One store call, `deleteHousehold(id)`, in this order so that each step leaves nothing reachable behind it:
+Triggered by `DELETE /household`, or by intake when a linked phone texts "FORGET ME" (`isForgetCommand` in `packages/core`). One store call, `deleteHousehold(id)`, in this order:
 
-1. Delete `PHONE#<phoneHash>`. New texts from that phone are now dropped.
-2. Delete each `DEVICE#<deviceId>` named by a household TV item. Those tokens now get 401.
-3. Delete every item in `HH#<id>`, in batches of 25.
-4. Publish `household.deleted` on the household channel.
+1. Delete `HH#<id>` `META`. From here every reader treats the household as gone: the API answers 401, intake drops the phone's texts, `save_cards` writes nothing.
+2. Delete the household's cards, friends and messages, in batches of 25.
+3. Delete each `DEVICE#<deviceId>` named by a household TV item (only if it still points here), then the TV items.
+4. Delete `PHONE#<phoneHash>` (only if it still points here).
+5. The caller publishes `household.deleted` on the household channel.
 
-Every step is idempotent, so a retry (an SQS redelivery, or the TV calling again) finishes a delete that stopped halfway. Pairing codes, seen-message ids and the title cache hold no household data and expire by TTL.
+Every step is idempotent, and the pointers in (`DEVICE#`, `PHONE#`) go last, so whatever finds one finishes a delete that stopped partway: a TV whose household is gone gets 401 and the API finishes the delete; a text from a phone linked to a missing household finishes it and is dropped. A writer that saves into a household (intake, `save_cards`, `PATCH /cards`) checks again after writing, and sweeps up what it wrote if the household went in the meantime. Pairing codes, seen-message ids and the title cache hold no household data and expire by TTL.
 
 Outside the table, data can outlive a delete in three places, each listed in the README: the SQS dead-letter queue (raw texts with phone numbers, kept 4 days), the model provider behind the AI gateway (its own retention), and the outside lookups (OMDb sees titles, ScrapeCreators and Jina Reader see links). Logs carry ids, statuses and timings only.
 
@@ -136,12 +137,12 @@ The look, sizes and focus treatments are in `docs/design/README.md` (the Claude 
   - **Featured.** One show at a time in a large card; Left and Right flip through, wrapping. Stacks, unsorted notes and cards to check are skipped.
 - **Detail drawer.** A panel from the right: poster, title, meta, ratings, the synopsis, everyone's messages, the Alexa line, then Mark Watched, Remove and Back. Focus starts on Mark Watched and stays in the drawer. A card to check shows "Which one did you mean?" and its candidates instead of the synopsis.
 - **Settings panel.** The same panel style: Theme, Default view, Hide watched, the Recco number, "Pair another phone" (shows a new code), the linked phone's last four digits, "Forget me", and the app version.
-  - "Pair another phone" first says what happens to this list: "This list will be deleted when the other phone pairs" if this is the household's only TV, otherwise "This list stays on your other TVs". Then the code.
+  - "Pair another phone" first says what happens to this list: "This list will be deleted when the other phone pairs" if this is the household's only TV, otherwise "This list stays on your other TVs". Selecting it again shows the code.
   - "Forget me" turns the screen into a confirm step: "Delete your list, your friends, and the link to the phone ending 1234? Every TV using this list goes back to pairing. This can't be undone." Two buttons, "Keep my list" (focused) and "Delete everything".
 - **Placeholder tile.** A dashed tile with a "typing" bubble (three hopping dots), a status line that steps from "Reading your text…" through "Working out which show…", "Looking it up…" and "Finding the poster…" to "Almost there…" (3.5 s a step, then it holds), and a light sweeping across the poster slot.
 - **Empty inbox.** "Nothing to watch yet.", the Recco number, three how-it-works lines, and four example texts. Settings has focus.
 - **Focus.** One element always has focus. Back, or Left from the leftmost control, closes the drawer or settings and returns focus to where it was. Back closes an open stack. Back from the home screen with nothing open exits the app.
-- **State.** Load the inbox on launch and keep it in memory. Apply events to it. Save the last inbox to storage for offline start. On `paired`, `household.deleted`, or a 401, throw the saved inbox away first.
+- **State.** Load the inbox on launch and keep it in memory. Apply events to it. Save the last inbox to storage for offline start. When `householdId` changes, on `household.deleted`, or on a 401, throw the saved inbox away first. `household.deleted` then asks `GET /inbox`: a 401 clears the token and shows pairing; a TV that has just moved away gets its new household instead.
 
 ### Local mode
 

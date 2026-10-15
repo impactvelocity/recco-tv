@@ -46,6 +46,8 @@ export interface SaveCardsResult {
  * Validate, write, finish the message, and tell the TVs. Plain code, not a
  * model call. Any title id that did not come from find_titles in this run is
  * rejected; if nothing survives, her words are kept as an unsorted note.
+ * Writes and publishes nothing if the household or the message is gone
+ * (R11.7).
  */
 export async function saveCards(
   job: AgentJob,
@@ -56,7 +58,8 @@ export async function saveCards(
 ): Promise<SaveCardsResult> {
   const now = deps.now?.() ?? new Date();
   const household = await deps.store.getHousehold(job.householdId);
-  if (!household) throw new Error(`No household ${job.householdId}`);
+  const message = household && (await deps.store.getMessage(job.householdId, job.messageId));
+  if (!household || !message) return { saved: [], rejected: [] };
 
   const rejected: SaveCardsResult["rejected"] = [];
   const valid = drafts.filter((d) => {
@@ -108,8 +111,19 @@ export async function saveCards(
     });
   }
 
-  await deps.store.putCards(saved);
-  await deps.store.updateMessage(job.householdId, job.messageId, { status: "done" });
+  let writeError: unknown;
+  try {
+    await deps.store.putCards(saved);
+    await deps.store.updateMessage(job.householdId, job.messageId, { status: "done" });
+  } catch (err) {
+    writeError = err;
+  }
+  // Forgotten while the agent ran: sweep up what was just written, and tell no one.
+  if (!(await deps.store.getHousehold(job.householdId))) {
+    await deps.store.deleteHousehold(job.householdId);
+    return { saved: [], rejected };
+  }
+  if (writeError) throw writeError;
   await deps.publisher.publish(household.channelId, { type: "card.ready", messageId: job.messageId, cards: saved });
   return { saved, rejected };
 }

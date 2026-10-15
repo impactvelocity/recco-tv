@@ -42,7 +42,9 @@ publisher.onPublish((channelId, event) => {
         ? `${event.card.title} → ${event.card.state}${event.card.rating ? ` (${event.card.rating})` : ""}`
         : event.type === "paired"
           ? `phone ending ${event.phoneLast4}`
-          : event.messageId;
+          : "messageId" in event
+            ? event.messageId
+            : "";
   console.log(`  event  ${event.type.padEnd(13)} ${channelId}  ${detail}`);
 });
 
@@ -77,7 +79,8 @@ async function intake(text: InboundText): Promise<IntakeResult> {
     defaultCountry: "ca",
     startAgent,
   });
-  console.log(`  text   ${JSON.stringify(text.body)} via ${text.provider} → ${result.kind}${"reason" in result ? ` (${result.reason})` : ""}`);
+  const plan = result.kind === "paired" && result.plan.kind === "move" ? ` (moved from ${result.plan.from}, ${result.plan.leaving})` : "";
+  console.log(`  text   ${JSON.stringify(text.body)} via ${text.provider} → ${result.kind}${"reason" in result ? ` (${result.reason})` : ""}${plan}`);
   return result;
 }
 

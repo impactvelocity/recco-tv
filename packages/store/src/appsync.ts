@@ -31,7 +31,8 @@ export class AppSyncEventsPublisher implements Publisher {
     });
     if (!res.ok) {
       // A missed live update is not fatal: TVs fall back to polling. Log and carry on.
-      console.error(`AppSync publish failed: ${res.status} ${await res.text().catch(() => "")}`);
+      // Status only: the response can echo the event, and events carry cards.
+      console.error(`AppSync publish failed: ${res.status}`);
     }
   }
 }

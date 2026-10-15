@@ -333,7 +333,10 @@ Removes every resource the stack created, including the table and the secret.
 - Phone numbers are stored as a salted hash plus the last four digits. Friends are first names only. No contacts, no audio, no accounts or passwords.
 - Logs carry ids, statuses and timings, not phone numbers or message text.
 - Outside services see only what they need: OMDb sees titles, ScrapeCreators and Jina Reader see the links you send, the model provider sees the text.
-- In progress: "Forget me" (from the TV's settings, or by texting `FORGET ME`) to delete a household's cards, friends, texts, phone link and every TV's pairing, and a cleaner hand-off when a TV moves to another phone. The rules and design are written (`.kiro/specs/recco/`); the code is not yet in.
+- **Forget me.** Settings → Forget me on any TV (after a confirm step), or text exactly `FORGET ME` from the linked phone. It deletes the household's cards, friends, saved texts, phone link and every TV's pairing, with no copy kept, and every TV goes back to pairing. It can't be undone, and Recco doesn't text back.
+- **Moving a TV.** Pairing a TV to a different phone takes it out of its old household and drops everything it saved. If it was the old household's only TV, that household is deleted as above; Settings says so before it shows the code. If other TVs still use it, they keep it on a new live-update channel the moved TV doesn't know.
+- **Where data can outlive a delete:** texts that fail intake three times wait in the SQS dead-letter queue for 4 days (with phone numbers); the model provider behind the AI gateway keeps what it was sent under its own retention; OMDb, ScrapeCreators and Jina Reader saw the titles and links they were asked about. Logs hold ids, statuses, counts and timings, and errors are logged by name and code location only.
+- Households created before forget-me need `pnpm backfill:households --apply` once (it reports first without `--apply`), so a delete can reach their phone link and TVs.
 
 ## Docs
 

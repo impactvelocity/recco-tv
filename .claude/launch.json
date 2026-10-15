@@ -4,8 +4,22 @@
     {
       "name": "site",
       "runtimeExecutable": "pnpm",
-      "runtimeArgs": ["--filter", "site", "dev", "--port", "3100"],
+      "runtimeArgs": [
+        "--filter",
+        "site",
+        "dev",
+        "--port",
+        "3100"
+      ],
       "port": 3100
+    },
+    {
+      "name": "api-local",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": [
+        "dev:local"
+      ],
+      "port": 8787
     }
   ]
 }

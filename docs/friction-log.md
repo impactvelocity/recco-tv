@@ -125,3 +125,13 @@ Every time a tool, SDK or document gets in the way, add an entry in this format.
 - Severity: moderate
 - Workaround: `packages/sources/src/title-match.ts`: try "&"/"and" and plain spellings until one finds the title, then rank results by word overlap. The prompt now tells the agent to retry with the official title, up to three tries per show.
 - Suggestion: Normalise "&"/"and" and punctuation in OMDb search.
+
+### No screenshots from the Vega Virtual Device
+- Tool / doc: Builder Tools MCP `vega_cli_commands_exec_vda_gwsi_tool_screenshooter.md` (`gwsi-tool-screenshooter`)
+- Task attempted: 5.8, checking the new "Forget me" confirm step and the settings panel layout without a Fire TV Stick.
+- Steps taken: Looked for a CLI way to capture the virtual device's screen.
+- Expected: A screenshot command that works on the Virtual Device, where most development happens without hardware.
+- Actual: The doc says the screenshot tool works on physical devices only, not the virtual device. Combined with no JS console access, layout on the VVD can only be checked by a person looking at it.
+- Severity: moderate
+- Workaround: Debug builds post focus moves and actions to `pnpm dev:local`, which checks behaviour; a person checks the look.
+- Suggestion: Support `gwsi-tool-screenshooter` on the Virtual Device, or document another way to capture its screen.

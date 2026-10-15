@@ -1,5 +1,8 @@
 {
   "project": {
     "identifier": "recco"
+  },
+  "platform": {
+    "default": "vega_os"
   }
 }

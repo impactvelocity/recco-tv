@@ -34,20 +34,20 @@ export async function seedDemo(store: MemoryStore, salt: string, now = new Date(
     id: DEMO.householdId,
     country: "ca",
     phoneLast4: phoneLast4(DEMO.phone),
+    phoneHash: hashPhone(DEMO.phone, salt),
     channelId: "ch_demo_household",
     createdAt: created,
   };
   await store.createHousehold(household);
-  await store.putPhoneLink(hashPhone(DEMO.phone, salt), household.id);
+  await store.putPhoneLink(household.phoneHash, household.id);
 
   await store.createDevice({
     id: DEMO.deviceId,
     tokenHash: hashDeviceToken(DEMO.deviceToken),
     channelId: "ch_demo_device",
     createdAt: created,
-    householdId: household.id,
-    pairedAt: created,
   });
+  await store.moveDevice(DEMO.deviceId, household.id, created);
 
   const friend = (id: string, name: string): Friend => ({ id, householdId: household.id, name, createdAt: created });
   const { jordan, steph, priya } = DEMO.friendIds;

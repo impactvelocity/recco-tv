@@ -52,3 +52,19 @@ export function awsDeps() {
     publisher: new AppSyncEventsPublisher(appSyncConfigFromEnv()),
   };
 }
+
+/**
+ * An error as it may be logged: its name and where it was thrown, never its
+ * message. Messages from the model SDK and DynamoDB can quote the prompt or
+ * item values, and logs must hold no phone numbers, texts or cards (R11.9).
+ * The full message is kept on the raw message, which a delete removes.
+ */
+export function safeError(err: unknown): { name: string; at?: string } {
+  if (!(err instanceof Error)) return { name: typeof err };
+  const at = err.stack
+    ?.split("\n")
+    .slice(1, 4)
+    .map((line) => line.trim())
+    .join(" | ");
+  return { name: err.name, at };
+}

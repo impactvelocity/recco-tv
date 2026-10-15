@@ -1,4 +1,10 @@
-import React, {forwardRef, useEffect, useRef, useState} from 'react';
+import React, {
+  forwardRef,
+  useEffect,
+  useRef,
+  useState,
+  type MutableRefObject,
+} from 'react';
 import {Pressable, StyleSheet, Text, View} from 'react-native';
 import {
   TVFocusGuideView,
@@ -16,13 +22,44 @@ import {radius, shadow, type} from '../theme';
 
 const SETTLE_MS = 200;
 
-/** Settings, as a panel from the right like the drawer. Back, or Left, closes it. */
-export function SettingsPanel({onClose}: {onClose: () => void}) {
+/**
+ * "Pair another phone" in two steps: first what happens to this list (R1.11),
+ * then the code.
+ */
+type PairStep = 'idle' | 'warned' | 'code';
+
+/** What pairing another phone does to this list (R1.11). */
+export function pairWarning(otherTvs: number): string {
+  if (otherTvs === 0) {
+    return 'This list will be deleted when the other phone pairs.';
+  }
+  return `This list stays on your other ${otherTvs === 1 ? 'TV' : 'TVs'}.`;
+}
+
+/**
+ * Settings, as a panel from the right like the drawer. Back, or Left, closes
+ * it. "Forget me" turns the panel into a confirm step (R11.3), where Back or
+ * Left returns to the list.
+ */
+export function SettingsPanel({
+  onClose,
+  backRef,
+}: {
+  onClose: () => void;
+  /** HomeScreen asks this first on Back; true means the panel handled it. */
+  backRef: MutableRefObject<(() => boolean) | null>;
+}) {
   const c = useColors();
   const prefs = usePrefs();
-  const {inbox, pairingCode, requestNewCode} = useInbox();
-  const [asked, setAsked] = useState(false);
+  const {inbox, pairingCode, requestNewCode, forget} = useInbox();
+  const [pairStep, setPairStep] = useState<PairStep>('idle');
+  const [confirming, setConfirming] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const first = useRef<View>(null);
+  const forgetRow = useRef<View>(null);
+  const keep = useRef<View>(null);
+  const wasConfirming = useRef(false);
   const focusedSince = useRef<number | null>(null);
   const paired = inbox?.pairing.paired ? inbox.pairing : null;
   const number = inbox?.pairing.phoneNumber ?? '';
@@ -31,12 +68,59 @@ export function SettingsPanel({onClose}: {onClose: () => void}) {
     focusLater(first.current);
   }, []);
 
+  // Focus starts on "Keep my list" (R11.3), and returns to "Forget me" after.
+  useEffect(() => {
+    if (confirming) {
+      focusLater(keep.current);
+    } else if (wasConfirming.current) {
+      focusLater(forgetRow.current);
+    }
+    wasConfirming.current = confirming;
+  }, [confirming]);
+
   // Once the other phone texts the code, the context clears it.
   useEffect(() => {
     if (!pairingCode) {
-      setAsked(false);
+      setPairStep('idle');
     }
   }, [pairingCode]);
+
+  const cancelForget = () => {
+    debugLog('action', {setting: 'Forget me', action: 'keep'});
+    setConfirming(false);
+    setError(null);
+  };
+
+  const confirmForget = async () => {
+    if (deleting) {
+      return;
+    }
+    debugLog('action', {setting: 'Forget me', action: 'delete'});
+    setDeleting(true);
+    setError(null);
+    try {
+      // On success the app goes back to pairing and this panel unmounts.
+      await forget();
+    } catch {
+      setDeleting(false);
+      setError("Couldn't reach Recco. Nothing changed on this TV. Try again.");
+    }
+  };
+
+  useEffect(() => {
+    backRef.current = () => {
+      if (!confirming) {
+        return false;
+      }
+      if (!deleting) {
+        cancelForget();
+      }
+      return true;
+    };
+    return () => {
+      backRef.current = null;
+    };
+  });
 
   useTVEventHandler((evt) => {
     if (evt.eventType !== 'left' || evt.eventKeyAction === 1) {
@@ -44,7 +128,11 @@ export function SettingsPanel({onClose}: {onClose: () => void}) {
     }
     const since = focusedSince.current;
     if (since !== null && Date.now() - since > SETTLE_MS) {
-      onClose();
+      if (!confirming) {
+        onClose();
+      } else if (!deleting) {
+        cancelForget();
+      }
     }
   });
   const settle = {
@@ -52,7 +140,50 @@ export function SettingsPanel({onClose}: {onClose: () => void}) {
     onBlur: () => (focusedSince.current = null),
   };
 
-  const showCode = asked && pairingCode;
+  const warning = pairWarning(paired?.otherTvs ?? 0);
+  const showCode = pairStep === 'code' && pairingCode;
+  if (confirming) {
+    return (
+      <View style={styles.scrim}>
+        <TVFocusGuideView
+          trapFocusLeft
+          trapFocusRight
+          trapFocusUp
+          trapFocusDown
+          style={[
+            styles.panel,
+            {backgroundColor: c.surface2, borderColor: c.border},
+            shadow.panel,
+          ]}>
+          <Text style={[styles.heading, {color: c.text}]}>Forget me</Text>
+          <Text style={[styles.confirm, {color: c.text}]}>
+            {`Delete your list, your friends, and the link to the phone ending ${
+              paired?.phoneLast4 ?? '—'
+            }? Every TV using this list goes back to pairing. This can't be undone.`}
+          </Text>
+          {error ? (
+            <Text style={[styles.confirmNote, {color: c.text2}]}>{error}</Text>
+          ) : null}
+          <View style={styles.confirmButtons}>
+            <FocusButton
+              ref={keep}
+              label="Keep my list"
+              look="surface"
+              {...settle}
+              onPress={cancelForget}
+              style={styles.confirmButton}
+            />
+            <FocusButton
+              icon="trash"
+              label={deleting ? 'Deleting…' : 'Delete everything'}
+              onPress={confirmForget}
+              style={styles.confirmButton}
+            />
+          </View>
+        </TVFocusGuideView>
+      </View>
+    );
+  }
   return (
     <View style={styles.scrim}>
       <TVFocusGuideView
@@ -108,12 +239,25 @@ export function SettingsPanel({onClose}: {onClose: () => void}) {
                 } to ${formatPhone(
                   pairingCode.phoneNumber,
                 )}. It lasts ten minutes.`
+              : pairStep === 'warned'
+              ? `${warning} Select again for the code.`
               : 'Connect a different phone to this TV'
           }
-          value={showCode ? pairingCode.code : ''}
+          value={
+            showCode
+              ? pairingCode.code
+              : pairStep === 'warned'
+              ? 'Get code'
+              : ''
+          }
           {...settle}
           onPress={() => {
-            setAsked(true);
+            if (pairStep === 'idle') {
+              debugLog('action', {setting: 'Pair another phone', warning});
+              setPairStep('warned');
+              return;
+            }
+            setPairStep('code');
             requestNewCode();
           }}
         />
@@ -122,6 +266,17 @@ export function SettingsPanel({onClose}: {onClose: () => void}) {
           sub="Phone number on file"
           value={paired ? `Ending ${paired.phoneLast4}` : '—'}
           {...settle}
+        />
+        <Row
+          ref={forgetRow}
+          label="Forget me"
+          sub="Delete this list and unpair every TV"
+          value=""
+          {...settle}
+          onPress={() => {
+            debugLog('action', {setting: 'Forget me', action: 'ask'});
+            setConfirming(true);
+          }}
         />
         <View style={styles.bottom}>
           <FocusButton
@@ -214,14 +369,18 @@ const styles = StyleSheet.create({
     fontSize: 44,
     fontWeight: '700',
     letterSpacing: -0.9,
-    marginBottom: 16,
+    marginBottom: 8,
   },
+  confirm: {fontSize: 30, lineHeight: 42, fontWeight: '500'},
+  confirmNote: {fontSize: 22, lineHeight: 30},
+  confirmButtons: {flexDirection: 'row', gap: 16, marginTop: 24},
+  confirmButton: {borderRadius: 16, paddingVertical: 18, paddingHorizontal: 26},
   row: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     gap: 16,
-    paddingVertical: 20,
+    paddingVertical: 16,
     paddingHorizontal: 22,
     borderRadius: 16,
   },

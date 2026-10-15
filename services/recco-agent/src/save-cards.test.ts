@@ -9,7 +9,7 @@ let publisher: MemoryPublisher;
 beforeEach(async () => {
   store = new MemoryStore();
   publisher = new MemoryPublisher();
-  await store.createHousehold({ id: "hh1", country: "ca", phoneLast4: "1234", channelId: "ch1", createdAt: "x" });
+  await store.createHousehold({ id: "hh1", country: "ca", phoneLast4: "1234", phoneHash: "ph1", channelId: "ch1", createdAt: "x" });
   await store.putFriend({ id: "fr1", householdId: "hh1", name: "Jordan", createdAt: "x" });
 });
 
@@ -106,5 +106,38 @@ describe("cleanGroupTitle", () => {
     expect(cleanGroupTitle("A".repeat(60))).toHaveLength(40);
     expect(cleanGroupTitle("  ")).toBeUndefined();
     expect(cleanGroupTitle(null)).toBeUndefined();
+  });
+});
+
+describe("saveCards for a forgotten household (R11.7)", () => {
+  const draft = { kind: "title" as const, titleId: "tt11280740", title: "Severance" };
+
+  it("writes and publishes nothing when the household is gone", async () => {
+    const j = await job("Severance");
+    await store.deleteHousehold("hh1");
+    const result = await saveCards(j, [draft], new Set(["tt11280740"]), { store, publisher, now });
+    expect(result.saved).toEqual([]);
+    expect(store.cards.size + store.friends.size + store.messages.size).toBe(0);
+    expect(publisher.sent).toEqual([]);
+  });
+
+  it("writes and publishes nothing when the message is gone", async () => {
+    const result = await saveCards({ householdId: "hh1", messageId: "m_gone", body: "Severance" }, [draft], new Set(["tt11280740"]), { store, publisher, now });
+    expect(result.saved).toEqual([]);
+    expect(store.cards.size).toBe(0);
+    expect(publisher.sent).toEqual([]);
+  });
+
+  it("sweeps up what it wrote when the household is deleted mid-write", async () => {
+    const j = await job("Severance - Priya loved it");
+    const put = store.putCards.bind(store);
+    store.putCards = async (cards) => {
+      await put(cards);
+      await store.deleteHousehold("hh1");
+    };
+    const result = await saveCards(j, [{ ...draft, friendName: "Priya" }], new Set(["tt11280740"]), { store, publisher, now });
+    expect(result.saved).toEqual([]);
+    expect(store.cards.size + store.friends.size + store.messages.size).toBe(0);
+    expect(publisher.sent).toEqual([]);
   });
 });

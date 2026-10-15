@@ -1,10 +1,12 @@
 import { DynamoDBClient, type DynamoDBClientConfig } from "@aws-sdk/client-dynamodb";
 import {
+  BatchWriteCommand,
   DeleteCommand,
   DynamoDBDocumentClient,
   GetCommand,
   PutCommand,
   QueryCommand,
+  TransactWriteCommand,
   UpdateCommand,
   type QueryCommandOutput,
 } from "@aws-sdk/lib-dynamodb";
@@ -65,6 +67,34 @@ export class DynamoStore implements Store {
     await this.put({ PK: `DEVICE#${deviceId}`, SK: "META", ...merged });
   }
 
+  async moveDevice(deviceId: string, householdId: string, pairedAt: string) {
+    const current = await this.getDevice(deviceId);
+    if (!current) throw new Error(`No device ${deviceId}`);
+    const { pairingCode: _c, pairingExpiresAt: _e, ...rest } = current;
+    const from = current.householdId && current.householdId !== householdId ? current.householdId : null;
+    try {
+      await this.db.send(
+        new TransactWriteCommand({
+          TransactItems: [
+            // The household must still exist: a TV is never attached to a forgotten one.
+            { ConditionCheck: { TableName: this.table, Key: { PK: `HH#${householdId}`, SK: "META" }, ConditionExpression: "attribute_exists(PK)" } },
+            { Put: { TableName: this.table, Item: { PK: `DEVICE#${deviceId}`, SK: "META", ...rest, householdId, pairedAt } } },
+            { Put: { TableName: this.table, Item: { PK: `HH#${householdId}`, SK: `DEVICE#${deviceId}`, entity: "tv", pairedAt } } },
+            ...(from ? [{ Delete: { TableName: this.table, Key: { PK: `HH#${from}`, SK: `DEVICE#${deviceId}` } } }] : []),
+          ],
+        }),
+      );
+    } catch (err) {
+      if ((err as { name?: string })?.name === "TransactionCanceledException") throw new Error(`No household ${householdId}`);
+      throw err;
+    }
+  }
+
+  async listHouseholdDevices(householdId: string) {
+    const items = await this.queryAll(`HH#${householdId}`, "DEVICE#");
+    return items.map((i) => String(i.SK).slice("DEVICE#".length));
+  }
+
   async putPairingCode(code: PairingCode) {
     try {
       // A code is free if it never existed or has expired (TTL deletion can lag by hours).
@@ -104,23 +134,9 @@ export class DynamoStore implements Store {
     return strip<Household>(await this.get(`HH#${householdId}`, "META"));
   }
 
-  /** One query on the household partition: the household, friends, cards and messages. */
+  /** One query on the household partition: the household, friends, cards, messages and TVs. */
   async getInbox(householdId: string): Promise<Inbox | null> {
-    const items: Record<string, unknown>[] = [];
-    let start: QueryCommandOutput["LastEvaluatedKey"];
-    do {
-      const page = await this.db.send(
-        new QueryCommand({
-          TableName: this.table,
-          KeyConditionExpression: "PK = :pk",
-          ExpressionAttributeValues: { ":pk": `HH#${householdId}` },
-          ExclusiveStartKey: start,
-        }),
-      );
-      items.push(...(page.Items ?? []));
-      start = page.LastEvaluatedKey;
-    } while (start);
-
+    const items = await this.queryAll(`HH#${householdId}`);
     const meta = items.find((i) => i.SK === "META");
     if (!meta) return null;
     const of = <T>(prefix: string) => items.filter((i) => String(i.SK).startsWith(prefix)).map((i) => strip<T>(i)!);
@@ -129,7 +145,91 @@ export class DynamoStore implements Store {
       friends: of<Friend>("FRIEND#"),
       cards: of<Card>("CARD#"),
       pendingMessages: of<RawMessage>("MSG#").filter((m) => m.status === "pending"),
+      deviceIds: items.filter((i) => String(i.SK).startsWith("DEVICE#")).map((i) => String(i.SK).slice("DEVICE#".length)),
     };
+  }
+
+  async rotateChannel(householdId: string, channelId: string) {
+    try {
+      const res = await this.db.send(
+        new UpdateCommand({
+          TableName: this.table,
+          Key: { PK: `HH#${householdId}`, SK: "META" },
+          UpdateExpression: "SET channelId = :c",
+          ConditionExpression: "attribute_exists(PK)",
+          ExpressionAttributeValues: { ":c": channelId },
+          ReturnValues: "UPDATED_OLD",
+        }),
+      );
+      return (res.Attributes?.channelId as string | undefined) ?? null;
+    } catch (err) {
+      if (isConditionFailure(err)) return null;
+      throw err;
+    }
+  }
+
+  /**
+   * See Store.deleteHousehold. META goes first, so readers stop at once; the
+   * device items and phone link go last, so a TV or a text that finds one can
+   * call this again and finish a delete that stopped partway.
+   */
+  async deleteHousehold(householdId: string, options: { phoneHash?: string } = {}) {
+    const PK = `HH#${householdId}`;
+    const items = await this.queryAll(PK);
+    const meta = items.find((i) => i.SK === "META");
+    const tvs = items.filter((i) => String(i.SK).startsWith("DEVICE#"));
+
+    if (meta) await this.db.send(new DeleteCommand({ TableName: this.table, Key: { PK, SK: "META" } }));
+    await this.batchDelete(items.filter((i) => i.SK !== "META" && !tvs.includes(i)).map((i) => ({ PK, SK: String(i.SK) })));
+    for (const tv of tvs) {
+      await this.deleteIfOwned({ PK: String(tv.SK), SK: "META" }, householdId);
+    }
+    await this.batchDelete(tvs.map((i) => ({ PK, SK: String(i.SK) })));
+    const phoneHash = (meta?.phoneHash as string | undefined) ?? options.phoneHash;
+    if (phoneHash) await this.deleteIfOwned({ PK: `PHONE#${phoneHash}`, SK: "META" }, householdId);
+    return strip<Household>(meta);
+  }
+
+  /** Deletes an item that points at this household. One that now points elsewhere (a TV that moved, a phone that paired again) is left. */
+  private async deleteIfOwned(Key: { PK: string; SK: string }, householdId: string) {
+    try {
+      await this.db.send(
+        new DeleteCommand({ TableName: this.table, Key, ConditionExpression: "householdId = :hh", ExpressionAttributeValues: { ":hh": householdId } }),
+      );
+    } catch (err) {
+      if (!isConditionFailure(err)) throw err;
+    }
+  }
+
+  private async batchDelete(keys: { PK: string; SK: string }[]) {
+    for (let i = 0; i < keys.length; i += 25) {
+      let requests: { DeleteRequest: { Key: Record<string, unknown> } }[] = keys.slice(i, i + 25).map((Key) => ({ DeleteRequest: { Key } }));
+      for (let attempt = 0; requests.length > 0; attempt++) {
+        if (attempt === 5) throw new Error(`Could not delete ${requests.length} items`);
+        if (attempt > 0) await new Promise((r) => setTimeout(r, 100 * 2 ** attempt));
+        const res = await this.db.send(new BatchWriteCommand({ RequestItems: { [this.table]: requests } }));
+        requests = (res.UnprocessedItems?.[this.table] ?? []) as typeof requests;
+      }
+    }
+  }
+
+  /** Every item in a partition, optionally under a sort key prefix, across pages. */
+  private async queryAll(PK: string, skPrefix?: string) {
+    const items: Record<string, unknown>[] = [];
+    let start: QueryCommandOutput["LastEvaluatedKey"];
+    do {
+      const page = await this.db.send(
+        new QueryCommand({
+          TableName: this.table,
+          KeyConditionExpression: skPrefix ? "PK = :pk AND begins_with(SK, :sk)" : "PK = :pk",
+          ExpressionAttributeValues: skPrefix ? { ":pk": PK, ":sk": skPrefix } : { ":pk": PK },
+          ExclusiveStartKey: start,
+        }),
+      );
+      items.push(...(page.Items ?? []));
+      start = page.LastEvaluatedKey;
+    } while (start);
+    return items;
   }
 
   async listFriends(householdId: string) {

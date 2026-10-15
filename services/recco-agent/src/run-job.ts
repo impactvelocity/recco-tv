@@ -21,7 +21,9 @@ export async function runAgentJob(
   job: AgentJob,
   agent: Agent,
   deps: { store: Store; publisher: Publisher; burst?: BurstOptions },
-): Promise<"done" | "failed" | "merged"> {
+): Promise<"done" | "failed" | "merged" | "gone"> {
+  // Forgotten before the agent started: no model call for a deleted household.
+  if (!(await deps.store.getHousehold(job.householdId))) return "gone";
   let followers: string[] = [];
   try {
     const settled = await settleBurst(job, deps.store, deps.burst);
@@ -32,6 +34,8 @@ export async function runAgentJob(
     await tellTvs(deps, job.householdId, followers.map((messageId) => ({ type: "card.ready", messageId, cards: [] })));
     return "done";
   } catch (err) {
+    // Forgotten while the agent ran: its messages are gone, so there is nothing to mark.
+    if (!(await deps.store.getHousehold(job.householdId))) return "gone";
     const error = err instanceof Error ? err.message : String(err);
     for (const id of [job.messageId, ...followers]) {
       await deps.store.updateMessage(job.householdId, id, { status: "failed", error });

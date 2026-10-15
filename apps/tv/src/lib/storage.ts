@@ -38,6 +38,12 @@ export const storage = {
       return null;
     }
   },
+  /** Household data from another household, or a forgotten one, never survives (R1.10, R11.5). */
+  async clearLastInbox(): Promise<void> {
+    try {
+      await AsyncStorage.removeItem(LAST_INBOX);
+    } catch {}
+  },
   async setLastInbox(inbox: Inbox): Promise<void> {
     try {
       await AsyncStorage.setItem(LAST_INBOX, JSON.stringify(inbox));

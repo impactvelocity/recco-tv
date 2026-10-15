@@ -55,6 +55,8 @@ export function HomeScreen() {
   /** The drawer follows a card, not an item: picking a candidate can merge it into another item. */
   const [detailCardId, setDetailCardId] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  /** Lets the settings panel take Back for its confirm step. */
+  const settingsBack = useRef<(() => boolean) | null>(null);
 
   const items = useMemo(
     () => buildInbox(cards, {hideWatched: prefs.hideWatched}),
@@ -175,7 +177,9 @@ export function HomeScreen() {
       if (detailCardId) {
         closeDetail();
       } else if (settingsOpen) {
-        closeSettings();
+        if (!settingsBack.current?.()) {
+          closeSettings();
+        }
       } else if (stackKey) {
         closeStack();
       } else {
@@ -325,7 +329,9 @@ export function HomeScreen() {
           }
         />
       ) : null}
-      {settingsOpen ? <SettingsPanel onClose={closeSettings} /> : null}
+      {settingsOpen ? (
+        <SettingsPanel onClose={closeSettings} backRef={settingsBack} />
+      ) : null}
     </View>
   );
 }

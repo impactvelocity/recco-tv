@@ -67,3 +67,25 @@ describe("texts sent back to back", () => {
     }
   });
 });
+
+describe("a forgotten household", () => {
+  it("is not read at all: no model call", async () => {
+    const job = await text("m_1", 0, "Severance");
+    await store.deleteHousehold(DEMO.householdId);
+    const { seen, agent } = recordingAgent();
+    expect(await runAgentJob(job, agent, { store, publisher, burst })).toBe("gone");
+    expect(seen).toEqual([]);
+    expect(publisher.sent).toEqual([]);
+  });
+
+  it("deleted while the agent runs: nothing is marked and no one is told", async () => {
+    const job = await text("m_1", 0, "Severance");
+    const agent = async () => {
+      await store.deleteHousehold(DEMO.householdId);
+      throw new Error("No message m_1");
+    };
+    expect(await runAgentJob(job, agent, { store, publisher, burst })).toBe("gone");
+    expect(store.messages.size).toBe(0);
+    expect(publisher.sent).toEqual([]);
+  });
+});

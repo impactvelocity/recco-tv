@@ -23,7 +23,7 @@ import {
   type InboundText,
   type SmsProvider,
 } from "@recco/sms";
-import type { Publisher, Store } from "@recco/store";
+import { forgetHousehold, safeError, type Publisher, type Store } from "@recco/store";
 import { Hono } from "hono";
 import { z } from "zod";
 
@@ -83,7 +83,7 @@ export function createApp(deps: ApiDeps) {
   const app = new Hono<Env>();
 
   app.onError((err, c) => {
-    console.error(err);
+    console.error(JSON.stringify({ error: safeError(err) }));
     return c.json({ error: "Something went wrong" }, 500);
   });
 
@@ -110,6 +110,12 @@ export function createApp(deps: ApiDeps) {
     const deviceId = token ? deviceIdFromToken(token) : null;
     const device = deviceId ? await store.getDevice(deviceId) : null;
     if (!device || !deviceTokenMatches(token, device.tokenHash)) {
+      return c.json({ error: "Unauthorized" }, 401);
+    }
+    if (device.householdId && !(await store.getHousehold(device.householdId))) {
+      // The household was forgotten (R11.6). A device item still here means the delete
+      // stopped partway: finish it, which removes this device too.
+      await store.deleteHousehold(device.householdId);
       return c.json({ error: "Unauthorized" }, 401);
     }
     c.set("device", device);
@@ -181,10 +187,18 @@ export function createApp(deps: ApiDeps) {
       });
     }
     const inbox = await store.getInbox(device.householdId);
-    if (!inbox) return c.json({ error: "Household not found" }, 404);
+    if (!inbox) return c.json({ error: "Unauthorized" }, 401);
     return c.json({
       serverTime,
-      pairing: { paired: true, phoneLast4: inbox.household.phoneLast4, phoneNumber: deps.reccoNumber },
+      pairing: {
+        paired: true,
+        // Lets a TV tell that it moved to another household, so it drops what it saved (R1.10).
+        householdId: inbox.household.id,
+        phoneLast4: inbox.household.phoneLast4,
+        phoneNumber: deps.reccoNumber,
+        // The household's other TVs: "Pair another phone" says whether this list survives (R1.11).
+        otherTvs: inbox.deviceIds.filter((id) => id !== device.id).length,
+      },
       friends: withTrackRecords(inbox.friends, inbox.cards).map(({ householdId: _, ...f }) => f),
       cards: inbox.cards.filter((card) => card.state !== "hidden").map(publicCard),
       pending: inbox.pendingMessages.map((m) => ({ messageId: m.id, receivedAt: m.receivedAt })),
@@ -215,8 +229,21 @@ export function createApp(deps: ApiDeps) {
     }
     await store.putCards([next]);
     const household = await store.getHousehold(householdId);
-    if (household) await publisher.publish(household.channelId, { type: "card.updated", card: next });
+    if (!household) {
+      // Forgotten while this ran: sweep up the card just written.
+      await store.deleteHousehold(householdId);
+      return c.json({ error: "Unauthorized" }, 401);
+    }
+    await publisher.publish(household.channelId, { type: "card.updated", card: next });
     return c.json({ card: publicCard(next) });
+  });
+
+  // Forget me (R11.2): delete the calling TV's household, then answer.
+  app.delete("/household", async (c) => {
+    const householdId = c.get("device").householdId;
+    if (!householdId) return c.json({ error: "Not paired" }, 409);
+    await forgetHousehold(store, publisher, householdId);
+    return c.body(null, 204);
   });
 
   app.get("/realtime", async (c) => {

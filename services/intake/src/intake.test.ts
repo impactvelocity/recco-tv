@@ -98,3 +98,131 @@ describe("texts", () => {
     expect(await send("SHORTCODE", "hi")).toEqual({ kind: "dropped", reason: "bad-number" });
   });
 });
+
+describe("forget me by text (R11.4)", () => {
+  it.each(["FORGET ME", "forget me", "  Forget me! "])("%j deletes the household, saves nothing and starts nothing", async (body) => {
+    const result = await send(DEMO.phone, body);
+    expect(result).toEqual({ kind: "forgotten", householdId: DEMO.householdId });
+    expect(await store.getHousehold(DEMO.householdId)).toBeNull();
+    expect(await store.getPhoneLink(hashPhone(DEMO.phone, SALT))).toBeNull();
+    expect(await store.getDevice(DEMO.deviceId)).toBeNull();
+    expect([...store.cards.values(), ...store.friends.values(), ...store.messages.values()]).toEqual([]);
+    expect(jobs).toEqual([]);
+    expect(publisher.sent).toEqual([{ channelId: "ch_demo_household", event: { type: "household.deleted" } }]);
+  });
+
+  it("afterwards, texts from the phone are from an unknown number (R11.8)", async () => {
+    await send(DEMO.phone, "FORGET ME");
+    expect(await send(DEMO.phone, "Severance")).toEqual({ kind: "dropped", reason: "unknown-phone" });
+    expect(store.messages.size).toBe(0);
+  });
+
+  it("the phone can pair again and starts empty", async () => {
+    await send(DEMO.phone, "FORGET ME");
+    const result = await send(DEMO.phone, "48213");
+    expect(result).toMatchObject({ kind: "paired", newHousehold: true });
+    if (result.kind !== "paired") throw new Error();
+    expect(result.householdId).not.toBe(DEMO.householdId);
+    expect((await store.getInbox(result.householdId))?.cards).toEqual([]);
+  });
+
+  it("a title that starts the same way is a normal text", async () => {
+    expect(await send(DEMO.phone, "Forget Me Not")).toMatchObject({ kind: "queued" });
+    expect(await store.getHousehold(DEMO.householdId)).not.toBeNull();
+  });
+
+  it("from an unknown phone is dropped", async () => {
+    expect(await send("+16045550000", "FORGET ME")).toEqual({ kind: "dropped", reason: "unknown-phone" });
+    expect(await store.getHousehold(DEMO.householdId)).not.toBeNull();
+  });
+});
+
+describe("moving a TV (R1.7 to R1.9)", () => {
+  const code = async (value: string, deviceId = "dev_new") => {
+    await store.putPairingCode({ code: value, deviceId, expiresAt: "2026-10-08T12:10:00.000Z" });
+  };
+
+  it("pairing the same phone again stays put", async () => {
+    await send(DEMO.phone, "48213");
+    await code("22222");
+    expect(await send(DEMO.phone, "22222")).toMatchObject({ kind: "paired", householdId: DEMO.householdId, plan: { kind: "stay" } });
+    expect((await store.listHouseholdDevices(DEMO.householdId)).sort()).toEqual([DEMO.deviceId, "dev_new"].sort());
+  });
+
+  it("the only TV moving to another phone deletes the old household", async () => {
+    await code("22222", DEMO.deviceId);
+    const result = await send("+17785552222", "22222");
+    expect(result).toMatchObject({ kind: "paired", newHousehold: true, plan: { kind: "move", from: DEMO.householdId, leaving: "forget" } });
+    if (result.kind !== "paired") throw new Error();
+
+    expect(await store.getHousehold(DEMO.householdId)).toBeNull();
+    expect(await store.getPhoneLink(hashPhone(DEMO.phone, SALT))).toBeNull();
+    expect([...store.cards.values()].filter((c) => c.householdId === DEMO.householdId)).toEqual([]);
+    expect(await store.getDevice(DEMO.deviceId)).toMatchObject({ householdId: result.householdId });
+    expect(await store.listHouseholdDevices(result.householdId)).toEqual([DEMO.deviceId]);
+    expect(publisher.sent).toEqual([
+      { channelId: "ch_demo_device", event: { type: "paired", phoneLast4: "2222", householdId: result.householdId } },
+      { channelId: "ch_demo_household", event: { type: "household.deleted" } },
+    ]);
+  });
+
+  it("a TV leaving a household that other TVs still use keeps it for them, on a new channel", async () => {
+    await send(DEMO.phone, "48213"); // dev_new joins the demo household
+    publisher.sent.length = 0;
+    await code("22222");
+    const result = await send("+17785552222", "22222");
+    expect(result).toMatchObject({ kind: "paired", plan: { kind: "move", from: DEMO.householdId, leaving: "rotate" } });
+    if (result.kind !== "paired") throw new Error();
+
+    const demo = await store.getInbox(DEMO.householdId);
+    expect(demo?.cards).toHaveLength(13);
+    expect(demo?.deviceIds).toEqual([DEMO.deviceId]);
+    expect(demo?.household.channelId).not.toBe("ch_demo_household");
+    expect(await store.getDevice("dev_new")).toMatchObject({ householdId: result.householdId });
+    expect(publisher.sent).toEqual([
+      { channelId: "ch_dev_new", event: { type: "paired", phoneLast4: "2222", householdId: result.householdId } },
+      { channelId: "ch_demo_household", event: { type: "channel.changed" } },
+    ]);
+    // Nothing that names the new channel goes out on the old one.
+    expect(JSON.stringify(publisher.sent)).not.toContain(demo!.household.channelId);
+  });
+
+  it("a TV can move to a phone that already has a household", async () => {
+    await send(DEMO.phone, "48213"); // dev_new joins the demo household
+    await store.createDevice({ id: "dev_other", tokenHash: "x", channelId: "ch_dev_other", createdAt: clock.toISOString() });
+    await code("33333", "dev_other");
+    const other = await send("+17785553333", "33333");
+    if (other.kind !== "paired") throw new Error();
+    await code("22222");
+    expect(await send("+17785553333", "22222")).toMatchObject({ kind: "paired", householdId: other.householdId, newHousehold: false });
+    expect((await store.listHouseholdDevices(other.householdId)).sort()).toEqual(["dev_new", "dev_other"]);
+  });
+});
+
+describe("a delete that stopped partway", () => {
+  it("is finished by the next text from the phone, which counts as unknown", async () => {
+    store.households.delete(DEMO.householdId); // META went first; the rest is still there
+    expect(await send(DEMO.phone, "Severance")).toEqual({ kind: "dropped", reason: "unknown-phone" });
+    expect(await store.getPhoneLink(hashPhone(DEMO.phone, SALT))).toBeNull();
+    expect(await store.getDevice(DEMO.deviceId)).toBeNull();
+    expect(store.cards.size).toBe(0);
+    expect(jobs).toEqual([]);
+  });
+
+  it("is finished when the phone pairs again, which starts a new household", async () => {
+    store.households.delete(DEMO.householdId);
+    expect(await send(DEMO.phone, "48213")).toMatchObject({ kind: "paired", newHousehold: true });
+    expect(store.cards.size).toBe(0);
+  });
+
+  it("a text that lands while the household is being deleted is swept up", async () => {
+    const put = store.putMessage.bind(store);
+    store.putMessage = async (m) => {
+      await put(m);
+      await store.deleteHousehold(DEMO.householdId);
+    };
+    expect(await send(DEMO.phone, "Severance")).toEqual({ kind: "dropped", reason: "unknown-phone" });
+    expect(store.messages.size).toBe(0);
+    expect(jobs).toEqual([]);
+  });
+});

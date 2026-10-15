@@ -28,6 +28,8 @@ interface InboxContextValue {
   refresh: () => Promise<void>;
   updateCard: (cardId: string, update: CardUpdate) => Promise<void>;
   requestNewCode: () => Promise<void>;
+  /** Forget me (R11.2): delete the household on the server, then go back to pairing. Throws if the server cannot be reached. */
+  forget: () => Promise<void>;
 }
 
 const InboxContext = createContext<InboxContextValue | null>(null);
@@ -47,11 +49,16 @@ export function InboxProvider({children}: {children: React.ReactNode}) {
   const [pairingCode, setPairingCode] = useState<PairingCode | null>(null);
   const [connectedLast4, setConnectedLast4] = useState<string | null>(null);
   const [live, setLive] = useState(false);
+  /** Bumped by `channel.changed`: fetch the household's new channel and resubscribe (R1.9). */
+  const [channelEpoch, setChannelEpoch] = useState(0);
 
   const token = useRef<string | null>(null);
   const phaseRef = useRef<Phase>('starting');
   const inboxRef = useRef<Inbox | null>(null);
   const busy = useRef(false);
+  /** A refresh was asked for while one was running: run another when it ends. */
+  const again = useRef(false);
+  const refreshRef = useRef<() => Promise<void>>();
   const pairingCodeRef = useRef<PairingCode | null>(null);
   pairingCodeRef.current = pairingCode;
 
@@ -75,6 +82,16 @@ export function InboxProvider({children}: {children: React.ReactNode}) {
     setPairingCode(created.pairing);
   }, []);
 
+  /** Throw away this TV's household: token, saved inbox, and what is on screen. Shows pairing (R11.5). */
+  const resetToPairing = useCallback(async () => {
+    token.current = null;
+    inboxRef.current = null;
+    setInbox(null);
+    setPairingCode(null);
+    await storage.setToken(null); // also removes the saved inbox
+    goTo('unpaired');
+  }, [goTo]);
+
   const requestNewCode = useCallback(async () => {
     if (!token.current) return;
     try {
@@ -87,16 +104,27 @@ export function InboxProvider({children}: {children: React.ReactNode}) {
   }, []);
 
   const refresh = useCallback(async () => {
-    if (busy.current) return;
+    if (busy.current) {
+      again.current = true;
+      return;
+    }
     busy.current = true;
     try {
       await ensureDevice();
-      const next = await api.inbox(token.current!);
+      const sent = token.current!;
+      const next = await api.inbox(sent);
+      // Reset or forgotten while this was in flight: the answer is from a household this TV has left.
+      if (token.current !== sent) return;
       setOffline(false);
 
       if (next.pairing.paired) {
-        const wasPaired = inboxRef.current?.pairing.paired;
-        const previousLast4 = wasPaired && inboxRef.current?.pairing.paired ? inboxRef.current.pairing.phoneLast4 : null;
+        const before = inboxRef.current?.pairing;
+        // Paired to another phone's household: nothing of the old one is kept (R1.10).
+        const moved = !!before?.paired && before.householdId !== next.pairing.householdId;
+        if (moved) {
+          debugLog('household-changed');
+          await storage.clearLastInbox();
+        }
         keepInbox(next);
         if (phaseRef.current === 'unpaired') {
           setConnectedLast4(next.pairing.phoneLast4);
@@ -105,7 +133,7 @@ export function InboxProvider({children}: {children: React.ReactNode}) {
           setTimeout(() => goTo('paired'), config.connectedHoldMs);
         } else if (phaseRef.current === 'starting') {
           goTo('paired');
-        } else if (previousLast4 && previousLast4 !== next.pairing.phoneLast4) {
+        } else if (moved) {
           // "Pair another phone" from settings succeeded.
           setPairingCode(null);
         }
@@ -121,13 +149,10 @@ export function InboxProvider({children}: {children: React.ReactNode}) {
       }
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) {
-        // The server no longer knows this TV (a local server restarts empty). Start over.
+        // The household was forgotten (R11.6), or the server no longer knows this TV
+        // (a local server restarts empty). Start over.
         debugLog('token-rejected');
-        token.current = null;
-        inboxRef.current = null;
-        await storage.setToken(null);
-        setInbox(null);
-        goTo('unpaired');
+        await resetToPairing();
       } else if (err instanceof NetworkError) {
         setOffline(true);
         if (phaseRef.current === 'starting') goTo(inboxRef.current?.pairing.paired ? 'paired' : 'unpaired');
@@ -136,8 +161,13 @@ export function InboxProvider({children}: {children: React.ReactNode}) {
       }
     } finally {
       busy.current = false;
+      if (again.current) {
+        again.current = false;
+        setTimeout(() => refreshRef.current?.(), 0);
+      }
     }
-  }, [ensureDevice, goTo, keepInbox, requestNewCode]);
+  }, [ensureDevice, goTo, keepInbox, requestNewCode, resetToPairing]);
+  refreshRef.current = refresh;
 
   // Start: saved token and last inbox first, so a TV with no network still shows the list.
   useEffect(() => {
@@ -157,6 +187,20 @@ export function InboxProvider({children}: {children: React.ReactNode}) {
   const applyEvent = useCallback(
     (event: ServerEvent) => {
       debugLog('event', {type: event.type});
+      if (event.type === 'household.deleted') {
+        // Forgotten, or this TV has just moved away from it. Drop the saved copy, then
+        // ask: a 401 goes back to pairing (R11.5, R11.6); a moved TV gets its new inbox.
+        storage.clearLastInbox();
+        refresh();
+        return;
+      }
+      if (event.type === 'channel.changed') {
+        // Another TV left. Resubscribe on the new channel; if it was this TV, the
+        // refresh finds its new household.
+        setChannelEpoch((n) => n + 1);
+        refresh();
+        return;
+      }
       const current = inboxRef.current;
       if (event.type === 'paired' || !current) {
         refresh();
@@ -188,8 +232,9 @@ export function InboxProvider({children}: {children: React.ReactNode}) {
   );
 
   // Live updates over AppSync Events. Resubscribes when the TV moves to a household channel.
-  // Changes when the TV pairs (device channel → household channel) or moves to another phone.
-  const channelKey = inbox?.pairing.paired ? `paired:${inbox.pairing.phoneLast4}` : 'unpaired';
+  // Changes when the TV pairs (device channel → household channel), moves to another phone,
+  // or is told its household's channel changed.
+  const channelKey = inbox?.pairing.paired ? `paired:${inbox.pairing.householdId}` : 'unpaired';
   useEffect(() => {
     if (phase === 'starting' || phase === 'connected' || !token.current) return;
     let client: RealtimeClient | null = null;
@@ -206,7 +251,7 @@ export function InboxProvider({children}: {children: React.ReactNode}) {
       cancelled = true;
       client?.stop();
     };
-  }, [phase, channelKey, applyEvent]);
+  }, [phase, channelKey, channelEpoch, applyEvent]);
 
   // Poll: fast while pairing, every five seconds without a live socket (R8.4), and a slow
   // safety net while live.
@@ -246,9 +291,24 @@ export function InboxProvider({children}: {children: React.ReactNode}) {
     [keepInbox],
   );
 
+  const forget = useCallback(async () => {
+    const sent = token.current;
+    if (!sent) return;
+    try {
+      await api.forgetHousehold(sent);
+    } catch (err) {
+      // 401: already gone (a FORGET ME text, or another TV got there first).
+      if (!(err instanceof ApiError && err.status === 401)) throw err;
+    }
+    debugLog('forgotten');
+    // The household.deleted event may have reset this TV already.
+    if (token.current === sent) await resetToPairing();
+    refresh();
+  }, [refresh, resetToPairing]);
+
   const value = useMemo(
-    () => ({phase, inbox, offline, live, pairingCode, connectedLast4, refresh, updateCard, requestNewCode}),
-    [phase, inbox, offline, live, pairingCode, connectedLast4, refresh, updateCard, requestNewCode],
+    () => ({phase, inbox, offline, live, pairingCode, connectedLast4, refresh, updateCard, requestNewCode, forget}),
+    [phase, inbox, offline, live, pairingCode, connectedLast4, refresh, updateCard, requestNewCode, forget],
   );
   return <InboxContext.Provider value={value}>{children}</InboxContext.Provider>;
 }

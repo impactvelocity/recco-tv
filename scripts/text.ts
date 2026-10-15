@@ -36,8 +36,13 @@ if (!res.ok || !result) {
 }
 
 switch (result.kind) {
-  case "paired":
-    console.log(`Paired a TV to household ${result.householdId}${result.newHousehold ? " (new)" : ""}.`);
+  case "paired": {
+    const plan = result.plan?.kind === "move" ? ` It left ${result.plan.from}, which was ${result.plan.leaving === "forget" ? "deleted (no other TVs)" : "kept for its other TVs"}.` : "";
+    console.log(`Paired a TV to household ${result.householdId}${result.newHousehold ? " (new)" : ""}.${plan}`);
+    break;
+  }
+  case "forgotten":
+    console.log(`Forgot household ${result.householdId}. Its TVs go back to pairing.`);
     break;
   case "dropped":
     console.log(`Dropped (${result.reason}). Nothing was stored.`);

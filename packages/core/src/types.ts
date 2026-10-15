@@ -13,6 +13,8 @@ export interface Household {
   /** Lower-case ISO 3166 code, e.g. "ca". */
   country: string;
   phoneLast4: string;
+  /** Salted hash of the linked phone, so a delete can find the phone link (R11.1). */
+  phoneHash: string;
   /** Unguessable id of the household's live-update channel. */
   channelId: string;
   createdAt: string;
@@ -128,7 +130,11 @@ export type ReccoEvent =
   | { type: "card.pending"; messageId: string; receivedAt: string }
   | { type: "card.ready"; messageId: string; cards: Card[] }
   | { type: "card.updated"; card: Card }
-  | { type: "card.failed"; messageId: string };
+  | { type: "card.failed"; messageId: string }
+  /** Forget me, or the last TV moved away. Carries no channel id. */
+  | { type: "household.deleted" }
+  /** A TV left the household; the others fetch the new channel from GET /realtime. */
+  | { type: "channel.changed" };
 
 /** The work handed from intake to the agent. */
 export interface AgentJob {

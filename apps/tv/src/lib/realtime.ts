@@ -17,7 +17,9 @@ export type ServerEvent =
   | {type: 'card.pending'; messageId: string; receivedAt: string}
   | {type: 'card.ready'; messageId: string; cards: any[]}
   | {type: 'card.updated'; card: any}
-  | {type: 'card.failed'; messageId: string};
+  | {type: 'card.failed'; messageId: string}
+  | {type: 'household.deleted'}
+  | {type: 'channel.changed'};
 
 const B64 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
 

@@ -63,7 +63,7 @@ describe("pairing", () => {
     });
 
     const after = (await (await app.request("/inbox", { headers: auth(deviceToken) })).json()) as any;
-    expect(after.pairing).toEqual({ paired: true, phoneLast4: "9876", phoneNumber: "+16045550142" });
+    expect(after.pairing).toEqual({ paired: true, householdId: expect.any(String), phoneLast4: "9876", phoneNumber: "+16045550142", otherTvs: 0 });
     expect(JSON.stringify(after)).not.toContain("6045559876");
   });
 
@@ -248,5 +248,76 @@ describe("POST /webhooks/zernio", () => {
     await post(raw, signZernio(raw, "zernio-secret"));
     const inbox = (await (await app.request("/inbox", { headers: auth(deviceToken) })).json()) as any;
     expect(inbox.pairing).toMatchObject({ paired: true, phoneLast4: "9390" });
+  });
+});
+
+describe("forget me and other TVs", () => {
+  const pairNewTv = async (phone = DEMO.phone) => {
+    const { deviceToken, pairing } = (await (await app.request("/devices", { method: "POST" })).json()) as any;
+    await app.request("/dev/text", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ from: phone, body: pairing.code }) });
+    return auth(deviceToken);
+  };
+  const inbox = async (headers: Record<string, string>) => (await (await app.request("/inbox", { headers })).json()) as any;
+
+  it("tells each TV how many other TVs share its list (R1.11)", async () => {
+    expect((await inbox(demo)).pairing).toMatchObject({ householdId: DEMO.householdId, otherTvs: 0 });
+    const second = await pairNewTv();
+    expect((await inbox(demo)).pairing.otherTvs).toBe(1);
+    expect((await inbox(second)).pairing.otherTvs).toBe(1);
+  });
+
+  it("DELETE /household forgets everything, answers 204, and every TV gets 401 after (R11.2, R11.6)", async () => {
+    const second = await pairNewTv();
+    publisher.sent.length = 0;
+    const res = await app.request("/household", { method: "DELETE", headers: demo });
+    expect(res.status).toBe(204);
+    expect(store.households.size).toBe(0);
+    expect(store.cards.size + store.friends.size + store.messages.size + store.phoneLinks.size + store.devices.size).toBe(0);
+    expect(publisher.sent).toEqual([{ channelId: "ch_demo_household", event: { type: "household.deleted" } }]);
+    for (const headers of [demo, second]) {
+      expect((await app.request("/inbox", { headers })).status).toBe(401);
+      expect((await app.request("/household", { method: "DELETE", headers })).status).toBe(401);
+    }
+  });
+
+  it("an unpaired TV has nothing to forget", async () => {
+    const { deviceToken } = (await (await app.request("/devices", { method: "POST" })).json()) as any;
+    expect((await app.request("/household", { method: "DELETE", headers: auth(deviceToken) })).status).toBe(409);
+    expect(store.households.size).toBe(1);
+  });
+
+  it("a TV of a household that is gone gets 401, and finishes the delete (R11.6)", async () => {
+    store.households.delete(DEMO.householdId);
+    expect((await app.request("/inbox", { headers: demo })).status).toBe(401);
+    expect(await store.getDevice(DEMO.deviceId)).toBeNull();
+    expect(store.cards.size).toBe(0);
+  });
+
+  it("a card written while the household is deleted is swept up", async () => {
+    const put = store.putCards.bind(store);
+    store.putCards = async (cards) => {
+      await put(cards);
+      await store.deleteHousehold(DEMO.householdId);
+    };
+    const res = await app.request("/cards/card_demo_10", { method: "PATCH", headers: { ...demo, "content-type": "application/json" }, body: JSON.stringify({ state: "starred" }) });
+    expect(res.status).toBe(401);
+    expect(store.cards.size).toBe(0);
+    expect(publisher.sent.filter((s) => s.event.type === "card.updated")).toEqual([]);
+  });
+
+  it("a TV moved to another phone sees only the new household", async () => {
+    const { deviceToken } = (await (await app.request("/devices", { method: "POST" })).json()) as any;
+    const tv = auth(deviceToken);
+    const code = async () => ((await (await app.request("/devices/code", { method: "POST", headers: tv })).json()) as any).pairing.code;
+    const text = (from: string, body: string) =>
+      app.request("/dev/text", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ from, body }) });
+    await text(DEMO.phone, await code());
+    expect((await inbox(tv)).cards).toHaveLength(13);
+    await text("+17785552222", await code());
+    const moved = await inbox(tv);
+    expect(moved.pairing).toMatchObject({ phoneLast4: "2222", otherTvs: 0 });
+    expect(moved.pairing.householdId).not.toBe(DEMO.householdId);
+    expect(moved.cards).toEqual([]);
+    expect((await inbox(demo)).pairing.otherTvs).toBe(0);
   });
 });

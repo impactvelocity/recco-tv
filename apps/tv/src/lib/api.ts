@@ -51,6 +51,9 @@ export const api = {
     request<{pairing: PairingCode}>('/devices/code', {method: 'POST', token}),
   inbox: (token: string) => request<Inbox>('/inbox', {token}),
   realtime: (token: string) => request<RealtimeConfig>('/realtime', {token}),
+  /** Forget me: answers once the household is deleted (R11.2). */
+  forgetHousehold: (token: string) =>
+    request<Record<string, never>>('/household', {method: 'DELETE', token}),
   updateCard: (token: string, cardId: string, update: CardUpdate) =>
     request<{card: ApiCard}>(`/cards/${encodeURIComponent(cardId)}`, {
       method: 'PATCH',

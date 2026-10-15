@@ -12,6 +12,8 @@ export class MemoryStore implements Store {
   readonly friends = new Map<string, Friend>();
   readonly cards = new Map<string, Card>();
   readonly messages = new Map<string, RawMessage>();
+  /** Household TV items: household id → device id → pairedAt. */
+  readonly householdDevices = new Map<string, Map<string, string>>();
   readonly seen = new Set<string>();
   dropped = 0;
 
@@ -29,6 +31,22 @@ export class MemoryStore implements Store {
     const d = this.devices.get(deviceId);
     if (!d) throw new Error(`No device ${deviceId}`);
     this.devices.set(deviceId, { ...d, ...clone(changes) });
+  }
+
+  async moveDevice(deviceId: string, householdId: string, pairedAt: string) {
+    const d = this.devices.get(deviceId);
+    if (!d) throw new Error(`No device ${deviceId}`);
+    if (!this.households.has(householdId)) throw new Error(`No household ${householdId}`);
+    const { pairingCode: _c, pairingExpiresAt: _e, ...rest } = d;
+    this.devices.set(deviceId, { ...rest, householdId, pairedAt });
+    if (d.householdId && d.householdId !== householdId) this.householdDevices.get(d.householdId)?.delete(deviceId);
+    const tvs = this.householdDevices.get(householdId) ?? new Map<string, string>();
+    tvs.set(deviceId, pairedAt);
+    this.householdDevices.set(householdId, tvs);
+  }
+
+  async listHouseholdDevices(householdId: string) {
+    return [...(this.householdDevices.get(householdId)?.keys() ?? [])];
   }
 
   async putPairingCode(code: PairingCode) {
@@ -73,7 +91,31 @@ export class MemoryStore implements Store {
       pendingMessages: [...this.messages.values()]
         .filter((m) => m.householdId === householdId && m.status === "pending")
         .map(clone),
+      deviceIds: await this.listHouseholdDevices(householdId),
     };
+  }
+
+  async rotateChannel(householdId: string, channelId: string) {
+    const h = this.households.get(householdId);
+    if (!h) return null;
+    this.households.set(householdId, { ...h, channelId });
+    return h.channelId;
+  }
+
+  /** Same order as DynamoStore.deleteHousehold. */
+  async deleteHousehold(householdId: string, options: { phoneHash?: string } = {}) {
+    const household = this.households.get(householdId) ?? null;
+    this.households.delete(householdId);
+    for (const map of [this.cards, this.friends, this.messages] as Map<string, { householdId: string }>[]) {
+      for (const [id, item] of map) if (item.householdId === householdId) map.delete(id);
+    }
+    for (const deviceId of this.householdDevices.get(householdId)?.keys() ?? []) {
+      if (this.devices.get(deviceId)?.householdId === householdId) this.devices.delete(deviceId);
+    }
+    this.householdDevices.delete(householdId);
+    const phoneHash = household?.phoneHash ?? options.phoneHash;
+    if (phoneHash && this.phoneLinks.get(phoneHash) === householdId) this.phoneLinks.delete(phoneHash);
+    return household ? clone(household) : null;
   }
 
   async listFriends(householdId: string) {

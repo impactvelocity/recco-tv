@@ -18,7 +18,15 @@ export type PairingState =
       expiresAt: string | null;
       phoneNumber: string;
     }
-  | {paired: true; phoneLast4: string; phoneNumber: string};
+  | {
+      paired: true;
+      /** Changes when this TV is paired to another phone's household (R1.10). */
+      householdId: string;
+      phoneLast4: string;
+      phoneNumber: string;
+      /** The household's other TVs. Zero means pairing another phone deletes this list (R1.11). */
+      otherTvs: number;
+    };
 
 export interface PendingText {
   messageId: string;

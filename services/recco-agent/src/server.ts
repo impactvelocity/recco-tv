@@ -6,8 +6,8 @@
 import { createServer } from "node:http";
 import type { AgentJob } from "@recco/core";
 import { createSources } from "@recco/sources";
-import { awsDeps, loadSecrets } from "@recco/store";
-import { createReccoAgent } from "./agent";
+import { awsDeps, loadSecrets, safeError } from "@recco/store";
+import { createReccoAgent, type AgentRunReport } from "./agent";
 import { createModel, modelId } from "./model";
 import { runAgentJob } from "./run-job";
 
@@ -27,6 +27,12 @@ async function buildAgent() {
 function isJob(value: unknown): value is AgentJob {
   const v = value as AgentJob;
   return !!v && typeof v.householdId === "string" && typeof v.messageId === "string" && typeof v.body === "string";
+}
+
+function reportSummary(report: AgentRunReport | undefined) {
+  if (!report) return {};
+  const { model, steps, inputTokens, outputTokens, fellBack } = report;
+  return { model, steps, tools: report.toolCalls.map((c) => c.tool), inputTokens, outputTokens, fellBack };
 }
 
 const server = createServer((req, res) => {
@@ -54,13 +60,15 @@ const server = createServer((req, res) => {
         agent = undefined;
         throw err;
       });
-      let report: unknown;
+      let report: AgentRunReport | undefined;
       const status = await runAgentJob(job, async (j) => (report = await (await agent!)(j)), deps);
-      console.log(JSON.stringify({ messageId: job.messageId, status, ms: Date.now() - started, report }));
-      reply(200, { status, report });
+      // Ids, counts and timings only: tool inputs carry her notes and friends' names (R11.9).
+      const summary = { messageId: job.messageId, status, ms: Date.now() - started, ...reportSummary(report) };
+      console.log(JSON.stringify(summary));
+      reply(200, summary);
     } catch (err) {
-      console.error("Agent error", err);
-      reply(500, { error: String(err) });
+      console.error(JSON.stringify({ messageId: job.messageId, error: safeError(err) }));
+      reply(500, { error: safeError(err).name });
     }
   });
 });

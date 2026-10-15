@@ -21,15 +21,31 @@ const card = (id: string, householdId: string, extra: Partial<Card> = {}): Card 
   ...extra,
 });
 
-/** The same behaviour from every Store implementation. */
-export function storeContract(name: string, make: () => Promise<Store>) {
+const rand = () => Math.random().toString(36).slice(2);
+
+const message = (id: string, householdId: string): RawMessage => ({
+  id,
+  householdId,
+  receivedAt: iso("2026-10-08T12:00:00Z"),
+  body: "Severance - Jordan loved it",
+  status: "pending",
+  provider: "simulator",
+  providerMessageId: `p_${id}`,
+});
+
+/**
+ * The same behaviour from every Store implementation. `leftovers` lists
+ * anything still stored that belongs to or points at a household, read
+ * straight from the backing store rather than through the interface.
+ */
+export function storeContract(name: string, make: () => Promise<Store>, leftovers: (store: Store, householdId: string) => Promise<string[]>) {
   describe(`${name} store contract`, () => {
     let store: Store;
     const hh = `hh_${Math.random().toString(36).slice(2)}`;
 
     beforeEach(async () => {
       store = await make();
-      await store.createHousehold({ id: hh, country: "ca", phoneLast4: "1234", channelId: "ch", createdAt: iso("2026-10-01T00:00:00Z") });
+      await store.createHousehold({ id: hh, country: "ca", phoneLast4: "1234", phoneHash: `ph_${hh}`, channelId: "ch", createdAt: iso("2026-10-01T00:00:00Z") });
     });
 
     it("stores devices and updates them, removing cleared fields", async () => {
@@ -98,6 +114,107 @@ export function storeContract(name: string, make: () => Promise<Store>) {
 
     it("counts drops", async () => {
       await store.countDropped();
+    });
+
+    const newDevice = async (householdId?: string) => {
+      const id = `dev_${rand()}`;
+      await store.createDevice({ id, tokenHash: "h", channelId: `ch_${id}`, createdAt: iso("2026-10-01T00:00:00Z"), pairingCode: "12345", pairingExpiresAt: iso("2026-10-01T00:10:00Z") });
+      if (householdId) await store.moveDevice(id, householdId, iso("2026-10-02T00:00:00Z"));
+      return id;
+    };
+
+    const newHousehold = async () => {
+      const id = `hh_${rand()}`;
+      await store.createHousehold({ id, country: "ca", phoneLast4: "9876", phoneHash: `ph_${id}`, channelId: `ch_${id}`, createdAt: iso("2026-10-01T00:00:00Z") });
+      await store.putPhoneLink(`ph_${id}`, id);
+      return id;
+    };
+
+    it("pairs a device, and moves it with exactly one household TV item", async () => {
+      const other = await newHousehold();
+      const d = await newDevice();
+      await store.moveDevice(d, hh, iso("2026-10-02T00:00:00Z"));
+      expect(await store.getDevice(d)).toMatchObject({ householdId: hh, pairedAt: iso("2026-10-02T00:00:00Z") });
+      expect((await store.getDevice(d))?.pairingCode).toBeUndefined();
+      expect(await store.listHouseholdDevices(hh)).toContain(d);
+      expect((await store.getInbox(hh))?.deviceIds).toContain(d);
+
+      await store.moveDevice(d, other, iso("2026-10-03T00:00:00Z"));
+      expect((await store.getDevice(d))?.householdId).toBe(other);
+      expect(await store.listHouseholdDevices(hh)).not.toContain(d);
+      expect(await store.listHouseholdDevices(other)).toEqual([d]);
+
+      // Pairing again to the same household keeps one item.
+      await store.moveDevice(d, other, iso("2026-10-04T00:00:00Z"));
+      expect(await store.listHouseholdDevices(other)).toEqual([d]);
+    });
+
+    it("never attaches a device to a household that is gone", async () => {
+      const d = await newDevice();
+      await expect(store.moveDevice(d, `hh_gone_${rand()}`, iso("2026-10-02T00:00:00Z"))).rejects.toThrow();
+      expect((await store.getDevice(d))?.householdId).toBeUndefined();
+    });
+
+    it("rotates a household's channel id", async () => {
+      const id = await newHousehold();
+      expect(await store.rotateChannel(id, "ch_new")).toBe(`ch_${id}`);
+      expect((await store.getHousehold(id))?.channelId).toBe("ch_new");
+      expect(await store.rotateChannel(`hh_gone_${rand()}`, "ch_x")).toBeNull();
+    });
+
+    it("deletes a household and leaves no item behind (R11.1)", async () => {
+      const id = await newHousehold();
+      const keep = await newHousehold();
+      const tv1 = await newDevice(id);
+      const tv2 = await newDevice(id);
+      const movedAway = await newDevice(id);
+      await store.moveDevice(movedAway, keep, iso("2026-10-03T00:00:00Z"));
+      const keptTv = await newDevice(keep);
+      await store.putFriend({ id: `fr_${rand()}`, householdId: id, name: "Jordan", createdAt: iso("2026-10-01T00:00:00Z") });
+      await store.putCards(Array.from({ length: 30 }, (_, i) => card(`c_${id}_${i}`, id)));
+      await store.putMessage(message(`m_${id}`, id));
+      await store.putCards([card(`c_${keep}`, keep)]);
+
+      const deleted = await store.deleteHousehold(id);
+      expect(deleted).toMatchObject({ id, channelId: `ch_${id}`, phoneHash: `ph_${id}` });
+      expect(await leftovers(store, id)).toEqual([]);
+      expect(await store.getHousehold(id)).toBeNull();
+      expect(await store.getInbox(id)).toBeNull();
+      expect(await store.getPhoneLink(`ph_${id}`)).toBeNull();
+      expect(await store.getDevice(tv1)).toBeNull();
+      expect(await store.getDevice(tv2)).toBeNull();
+      expect(await store.listFriends(id)).toEqual([]);
+      expect(await store.listHouseholdDevices(id)).toEqual([]);
+
+      // Nothing of another household is touched, including the TV that moved there.
+      expect((await store.getDevice(movedAway))?.householdId).toBe(keep);
+      expect((await store.getDevice(keptTv))?.householdId).toBe(keep);
+      expect(await store.getPhoneLink(`ph_${keep}`)).toBe(keep);
+      expect((await store.getInbox(keep))?.cards).toHaveLength(1);
+      expect((await store.getInbox(keep))?.deviceIds.sort()).toEqual([movedAway, keptTv].sort());
+
+      // Idempotent.
+      expect(await store.deleteHousehold(id)).toBeNull();
+    });
+
+    it("leaves a phone link that now points at another household", async () => {
+      const id = await newHousehold();
+      const next = await newHousehold();
+      await store.putPhoneLink(`ph_${id}`, next);
+      await store.deleteHousehold(id);
+      expect(await store.getPhoneLink(`ph_${id}`)).toBe(next);
+    });
+
+    it("finishes a delete whose META is already gone", async () => {
+      const id = await newHousehold();
+      await store.putCards([card(`c_${id}`, id)]);
+      // A stray write after the delete (a race with save_cards or intake).
+      await store.deleteHousehold(id);
+      await store.putPhoneLink(`ph_${id}`, id);
+      await store.putCards([card(`c2_${id}`, id)]);
+      await store.putMessage(message(`m2_${id}`, id));
+      expect(await store.deleteHousehold(id, { phoneHash: `ph_${id}` })).toBeNull();
+      expect(await leftovers(store, id)).toEqual([]);
     });
   });
 }
