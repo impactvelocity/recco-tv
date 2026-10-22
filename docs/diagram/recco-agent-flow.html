@@ -8,7 +8,7 @@
   Facts come from services/ (api, intake, agent-worker, recco-agent), infra/lib/recco-stack.ts and docs/decisions.md.
   Re-render from this folder:
   "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --headless=new --hide-scrollbars --allow-file-access-from-files \
-    --window-size=1200,4270 --force-device-scale-factor=2 --virtual-time-budget=4000 \
+    --window-size=1200,4262 --force-device-scale-factor=2 --virtual-time-budget=4000 \
     --screenshot="$PWD/recco-agent-flow.png" "file://$PWD/recco-agent-flow.html"
 -->
 <style>
@@ -71,7 +71,7 @@
   .node { width: 166px; flex: none; border-radius: 18px; background: #fff; border: 1px solid var(--line); padding: 14px 14px 15px;
           box-shadow: 0 10px 24px rgba(20, 28, 26, .06); }
   .node b { display: block; margin-top: 11px; font-size: 17px; font-weight: 750; letter-spacing: -.01em; line-height: 1.2; }
-  .node span { display: block; margin-top: 4px; font-size: 14.5px; line-height: 1.35; color: var(--ink2); }
+  .node span:not(.ic) { display: block; margin-top: 4px; font-size: 14.5px; line-height: 1.35; color: var(--ink2); }
   .node.wide { width: auto; flex: 1; }
   .wire { flex: 1; min-width: 26px; position: relative; align-self: center; height: 2px; background: var(--wire); }
   .wire::after { content: ""; position: absolute; right: -3px; top: -3px; width: 8px; height: 8px; border-radius: 50%; background: var(--wire); }

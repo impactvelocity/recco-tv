@@ -1,5 +1,7 @@
 # Recco
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE) **Open source under the [MIT License](LICENSE).**
+
 An inbox of things to watch, on Fire TV.
 
 People tell you about shows all day: a friend at dinner, a TikTok, a stray thought. Text each one to a single phone number and forget about it. When you sit down to watch, Recco is already on the TV with the list, who recommended each show, and what they said. Pick one and the TV tells you the line to say: *"Alexa, watch Severance."*
