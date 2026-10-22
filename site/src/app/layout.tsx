@@ -8,15 +8,23 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL(process.env.SITE_URL ?? "http://localhost:3100"),
+  metadataBase: new URL(process.env.SITE_URL ?? "https://recco.dev"),
   title: "Recco · An inbox of things to watch, on Fire TV",
   description:
     "Text a show to one number. When you sit down to watch, your Fire TV has the list, who recommended each one, and what they said.",
   icons: { icon: "/brand/app-icon.png" },
+  // The share image is app/opengraph-image.jpg, which Next.js picks up by file convention.
   openGraph: {
     title: "Recco",
     description: "An inbox of things to watch, on Fire TV.",
-    images: ["/bg/hero-room.jpg"],
+    url: "/",
+    siteName: "Recco",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Recco",
+    description: "An inbox of things to watch, on Fire TV.",
   },
 };
 
